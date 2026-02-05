@@ -1,0 +1,44 @@
+[build-system]
+requires = ['setuptools>=61.0']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'transformez'
+version = '0.0.1'
+description = 'A standalone utility for vertical elevation datum transformations.'
+readme = "README.md"
+authors = [{ name = 'Matthew Love' }]
+license = { text = 'MIT' }
+classifiers = [
+    'Programming Language :: Python :: 3',
+    'License :: OSI Approved :: MIT License',
+    'Operating System :: OS Independent',
+    'Topic :: Scientific/Engineering :: GIS',
+]
+dependencies = [
+    'numpy',
+    'pyproj',
+    'imagecodecs',
+    'tiffile',
+    'fetchez', 
+]
+
+keywords = ["Geospatial"]
+
+[project.entry-points."fetchez.plugins"]
+transformez = "transformez"
+
+[project.scripts]
+transformez = 'transformez.cli:transformez_cli'
+
+[project.urls]
+Homepage = "https://github.com/ciresdem/transformez"
+Issues = "https://github.com/ciresdem/transformez/issues"
+
+# --- Setuptools Configuration for 'src' layout ---
+
+[tool.setuptools.packages.find]
+where = ["src"]  # Look for packages inside the 'src' folder
+include = ["transformez*"]  # Include the package named 'transformez'
+exclude = ["tests*", "docs*", "scripts*", "examples*"]
+namespaces = false 
