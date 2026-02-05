@@ -63,7 +63,7 @@ class TransformezHook(FetchHook):
     def run(self, entries):
         if not entries: return entries
 
-        module = entries[0][0] 
+        module = entries[0][0]
         region = getattr(module, 'region', None)
         if not region:
             logger.warning("Module has no region defined. Cannot generate shift grid in PRE stage.")
@@ -89,7 +89,7 @@ class TransformezHook(FetchHook):
             logger.warning(f"Shift grid {self.output_grid} not found. Skipping transform.")
             return entries
 
-        for entry in entries:
+        for mod, entry in entries:
             if entry.get('status') != 0: continue
             
             filepath = entry['dst_fn']
@@ -117,6 +117,7 @@ class TransformezHook(FetchHook):
                 
         return entries
 
+    
     def _generate_grid(self, region):
         """Core logic to call VerticalTransform."""
 
