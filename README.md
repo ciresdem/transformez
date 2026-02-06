@@ -56,7 +56,7 @@ transformez -R -95/-94/28/29 -E 1s \
     --output mllw_to_navd88.gtx
 ```
 
-##🧩 Supported Datums
+## 🧩 Supported Datums
 
 Transformez supports a "Compound Datum" string format: EPSG:GEOID.
 
