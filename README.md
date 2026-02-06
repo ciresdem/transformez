@@ -28,6 +28,8 @@ Requires **Fetchez** (v0.3.3+) and standard geospatial libs.
 git clone [https://github.com/ciresdem/fetchez-transformez.git](https://github.com/ciresdem/fetchez-transformez.git)
 cd fetchez-transformez
 pip install -e .
+```
+
 Note: For Tidal transformations, you must have Java installed to run the embedded VDatum JAR.
 
 ## 🛠 Usage
