@@ -46,7 +46,7 @@ fetchez multibeam -R ... --hook transformez:in=5866,out=6319
 ```
 
 2. ***As a Standalone CLI***
-Use transformez (or the alias vdatz) to generate shift grids for use in other software (like PDAL, GDAL, or CARIS).
+Use transformez to generate shift grids for use in other software (like PDAL, GDAL, or CARIS).
 
 ```bash
 # Generate a GTX shift grid from MLLW to NAVD88
