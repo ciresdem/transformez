@@ -117,7 +117,7 @@ CUDEM home page: <http://cudem.colorado.edu>
     sys_group.add_argument('-q', '--quiet', action='store_true', help='Suppress log output.')
     sys_group.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
 
-    fixed_argv = spatial.fix_argparse_region(sys.argv[1:])    
+    fixed_argv = spatial.fix_argparse_region(sys.argv[1:])
     args = parser.parse_args(fixed_argv)
 
     if args.quiet:

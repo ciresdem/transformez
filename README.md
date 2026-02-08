@@ -10,7 +10,7 @@ It works in two modes:
 1.  **Standalone CLI:** Generate shift grids (GTX) for any region.
 2.  **Fetchez Plugin:** Automatically transform data as it is downloaded.
 
-## 🚀 Features
+## 🌎 Features
 
 * **Tidal Transformations:** Wraps NOAA's **VDatum** to transform between tidal surfaces (MLLW, MHHW) and geometric datums.
 * **Geoid Grids:** Seamlessly applies PROJ-CDN geoids (GEOID18, GEOID12B, EGM2008).
