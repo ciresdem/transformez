@@ -18,6 +18,14 @@ from fetchez.utils import str_or
 from fetchez.spatial import Region as fetchezRegion
 from . import srs
 
+try:
+    import pyproj
+    from pyproj import CRS, Transformer
+    HAS_PYPROJ = True
+except ImportError:
+    HAS_PYPROJ = False
+
+
 logger = logging.getLogger(__name__)
 
 class Region(fetchezRegion):
@@ -92,7 +100,7 @@ class Region(fetchezRegion):
 
     
     def transform_densify(self, transformer=None, transform_direction="FORWARD"):
-        if transformer is None or not self.is_valid():
+        if transformer is None or not self.valid_p():
             logger.error(f'Could not perform region transformation; {self}')
             return self
         
@@ -111,7 +119,7 @@ class Region(fetchezRegion):
 
 
     def transform(self, transformer=None, transform_direction="FORWARD"):
-        if transformer is None or not self.is_valid():
+        if transformer is None or not self.valid_p():
             logger.error(f'Could not perform region transformation; {self}')
             return self
 
@@ -123,14 +131,18 @@ class Region(fetchezRegion):
     
     def warp(self, dst_srs='epsg:4326'):
         """Transform region horizontally to a new CRS."""
+
+        if not HAS_PYPROJ:
+            logger.error("pyproj is required for reprojection.")
+            return self
         
         if str_or(self.srs) is None:
-            utils.echo_warning_msg(f'Region has no valid associated srs: {self.srs}')
+            logger.warning(f'Region has no valid associated srs: {self.srs}')
             return self
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            transform = srs.SRSParser(src_srs=self.srs, dst_srs=dst_crs)
+            transform = srs.SRSParser(src_srs=self.srs, dst_srs=dst_srs)
 
             if transform.tc['src_horz_crs'] and transform.tc['dst_horz_crs']:        
                 pipeline_str = '+proj=pipeline +step {} +inv +step {}'.format(
@@ -139,7 +151,7 @@ class Region(fetchezRegion):
                 )
                 transformer = pyproj.Transformer.from_pipeline(pipeline_str)
 
-                self.src_srs = dst_crs
+                self.src_srs = dst_srs
                 self.wkt = None
                 return self.transform_densify(transformer)
 

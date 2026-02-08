@@ -160,10 +160,11 @@ class SRSParser:
             
     
     def set_vertical_transform(self):
+        print(self.region)
         if self.region is None:
             return
         else:
-            vd_region = spatial.Region(self.region)
+            vd_region = Region.from_list(self.region)
             vd_region.srs = self.tc['dst_horz_crs'].to_proj4()
 
         vd_region.warp('epsg:4326')
@@ -218,11 +219,11 @@ class SRSParser:
             
         ## set the pyproj.Transformer for both horz+vert and vert only
         ## hack for navd88 datums in feet (6360 is us-feet, 8228 is international-feet
-        if utils.str_or(self.tc['src_vert_epsg']) == '6360':
+        if str_or(self.tc['src_vert_epsg']) == '6360':
             # or 'us-ft' in utils.str_or(src_vert, ''):
             #out_src_srs = out_src_srs + ' +vto_meter=0.3048006096012192'
             uc = ' +step +proj=unitconvert +z_in=us-ft +z_out=m'
-        elif utils.str_or(self.tc['src_vert_epsg']) == '8228':
+        elif str_or(self.tc['src_vert_epsg']) == '8228':
             uc = ' +step +proj=unitconvert +z_in=ft +z_out=m'
         else:
             uc = ''
@@ -256,30 +257,31 @@ class SRSParser:
                 = ('+proj=pipeline +step '
                    f'{self.tc["src_horz_crs"].to_proj4()} '
                    f'+inv +step {self.tc["dst_horz_crs"].to_proj4()}')
-                
+            
+            self.tc['pipeline'] = self.tc['horz_pipeline']                
             ## vertical Transformation
             if self.tc['want_vertical']:
                 self.set_vertical_transform()
-            else:
-                self.tc['pipeline'] = self.tc['horz_pipeline']
 
-            try:
-                self.tc['transformer'] \
-                    = pyproj.Transformer.from_pipeline(
-                        self.tc['pipeline']
-                    )
-            except Exception as e:
-                logger.warning(
-                    ('could not set transformation in: '
-                     f'{self.tc["src_horz_crs"].name}, out: '
-                     f'{self.tc["dst_horz_crs"].name}, {e}')
-                    )
 
-                return
+            #try:
+            #print(self.tc['pipeline'])
+            self.tc['transformer'] \
+                = pyproj.Transformer.from_pipeline(
+                    self.tc['pipeline']
+                )
+            #except Exception as e:
+            #    logger.warning(
+            #        ('could not set transformation in: '
+            #         f'{self.tc["src_horz_crs"].name}, out: '
+            #         f'{self.tc["dst_horz_crs"].name}, {e}')
+            #        )
+
+            #return
 
         if self.region is not None:
             self.region.srs = self.src_srs_input
-            self.tc['trans_region'] = Region(self.region)
+            self.tc['trans_region'] = Region.from_list(self.region)
         else:
             self.tc['trans_region'] = None
 
