@@ -26,6 +26,8 @@ It works in two ways:
 
 Requires **Fetchez** (v0.3.3+) and standard geospatial libs.
 
+* **HTDP / VDatum**: See [NOAA Geodesy Tools](https://geodesy.noaa.gov/TOOLS/Htdp/Htdp.shtml).
+
 ```bash
 # Clone and install
 git clone https://github.com/ciresdem/transformez.git
