@@ -40,6 +40,7 @@ pip install -e .
 Use transformez to generate shift grids for use in other software (PDAL, GDAL, CARIS) or to transform a specific DEM directly.
 
 * Mode A: Region & Resolution
+
 Generate a generic shift grid for a specific bounding box.
 
 ```bash
@@ -53,6 +54,7 @@ transformez -R -95.5/-94.5/28.5/29.5 -E 3s \
 ```
 
 * Mode B: Match Input DEM
+
 Automatically extract the bounds and resolution from an input DEM and generate a matching transformed output.
 
 ```bash
