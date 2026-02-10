@@ -107,7 +107,7 @@ shift_grid, unc = vt._vertical_transform(vt.epsg_in, vt.epsg_out)
 GridWriter.write("mllw_to_navd88.tif", shift_grid, region)
 ```
 
-2. Transform an Existing DEM
+### 2. Transform an Existing DEM
 
 If you have a DEM and a generated shift grid, you can apply the transformation mathematically using GridEngine.
 
@@ -123,7 +123,7 @@ GridEngine.apply_vertical_shift(
 )
 ```
 
-3. Parse SRS & Datums
+### 3. Parse SRS & Datums
 
 You can use the helper classes to resolve complex datum strings or EPSG codes.
 
