@@ -73,6 +73,72 @@ Configure fetchez to generate transformation grids automatically for downloaded 
 fetchez srtm_plus -R -120/-119/33/34 --hook transformez:datum_in=5773,datum_out=4979
 ```
 
+## Python API
+
+Transformez can be used directly in Python scripts to generate shift grids or transform arrays.
+
+### 1. Generate a Vertical Shift Grid
+Use `VerticalTransform` to calculate the shift array (numpy) between two datums for a specific region.
+
+```python
+from transformez.transform import VerticalTransform
+from fetchez.spatial import Region
+from transformez.grid_engine import GridWriter
+
+# 1. Define the Region (West, East, South, North)
+#    and the Grid Dimensions (nx, ny)
+region = Region(-95.5, -94.5, 28.5, 29.5)
+nx, ny = 1200, 1200 
+
+# 2. Initialize the Transformer
+#    - MLLW (5866) -> NAVD88 (5703) via GEOID18
+vt = VerticalTransform(
+    region=region,
+    nx=nx, ny=ny,
+    epsg_in="5866",       
+    epsg_out="5703:geoid=g2018" 
+)
+
+# 3. Generate the Shift Array (numpy)
+#    Returns: (shift_grid, uncertainty_grid)
+shift_grid, unc = vt._vertical_transform(vt.epsg_in, vt.epsg_out)
+
+# 4. Save to GeoTIFF
+GridWriter.write("mllw_to_navd88.tif", shift_grid, region)
+```
+
+2. Transform an Existing DEM
+
+If you have a DEM and a generated shift grid, you can apply the transformation mathematically using GridEngine.
+
+```python
+from transformez.grid_engine import GridEngine
+
+# Apply the vertical shift: Output = Input + Shift
+# Matches pixels 1:1, handling NoData and bounds automatically.
+GridEngine.apply_vertical_shift(
+    src_dem="input_ellipsoidal.tif",
+    shift_array=shift_grid,  # numpy array from step above
+    dst_dem="output_orthometric.tif"
+)
+```
+
+3. Parse SRS & Datums
+
+You can use the helper classes to resolve complex datum strings or EPSG codes.
+
+```python
+from transformez.definitions import Datums
+
+# Get VDatum CLI string for an EPSG
+v_str = Datums.get_vdatum_id(5866) 
+# Returns: 'mllw:m:height'
+
+# Get Default Geoid for a Datum
+geoid = Datums.get_default_geoid(5703)
+# Returns: 'g2018'
+```
+
 ## Supported Datums
 
 Transformez supports EPSG codes and compound formats (EPSG:GEOID).
