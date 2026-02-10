@@ -1,4 +1,4 @@
-# transformez
+# Transformez
 
 **The Vertical Transformation Tool and Fetchez Extension.**
 
