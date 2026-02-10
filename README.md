@@ -18,7 +18,7 @@ It works in two ways:
 * **Tidal Transformations:** Wraps NOAA's **VDatum** to transform between tidal surfaces (MLLW, MHHW) and geometric datums.
 * **Geoid Grids:** Seamlessly applies PROJ-CDN geoids (GEOID18, GEOID12B, EGM2008).
 * **Time-Dependent Shifts:** Integrates **HTDP** to handle crustal velocities and epoch transformations.
-* **Smart Grid Engine:** Automates the fetching, stitching, and mosaicking of partial VDatum grids into a single continuous shift surface.
+* **Grid Engine:** Automates the fetching, stitching, and mosaicking of partial VDatum grids into a single continuous shift surface.
 
 ---
 
