@@ -24,7 +24,7 @@ It works in two ways:
 
 ## Installation
 
-Requires **Fetchez** (v0.3.3+) and standard geospatial libs.
+* Requires **Fetchez** (v0.3.3+) and standard geospatial libs.
 
 * **HTDP / VDatum**: See [NOAA Geodesy Tools](https://geodesy.noaa.gov/TOOLS/Htdp/Htdp.shtml).
 
