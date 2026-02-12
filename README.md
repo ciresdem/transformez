@@ -1,10 +1,19 @@
-# Transformez
+# 🌍 Transformez ↕
 
-**The Vertical Transformation Tool and Fetchez Extension.**
+**Vertical datum transformations, simplified.**
 
 > ⚠️ **BETA STATUS:** This project is in active development (v0.1.0).
 
-**Transformez** provides vertical datum transformations for geospatial data. It acts as a bridge between the messy reality of vertical datums (Tidal, Orthometric, Ellipsoidal) and your data processing pipeline.
+Transformez is a standalone Python library and CLI for converting geospatial data between vertical datums (e.g., MLLW to NAVD88).
+
+## Why Transformez?
+
+Vertical datum transformation is often the hardest part of coastal DEM generation. Existing tools are either massive, complex desktop software or buried deep within heavy GIS libraries that are difficult to automate in a headless Linux environment.
+
+**Transformez solves this by being:**
+* **Lightweight:** A pure Python package that does one thing well. It doesn't require a GUI or a 5GB installer.
+* **Grid-Based:** It uses the official VDatum GTIF/GTX grids directly, ensuring your transformations match authoritative standards. 
+* **Developer Friendly:** It offers a clean Python API for integrating vertical shifts directly into your numpy/rasterio pipelines, plus a CLI for quick batch processing.
 
 It works in two ways:
 1.  **Standalone CLI:** Generate shift grids (TIF) for any region or match an existing DEM.
