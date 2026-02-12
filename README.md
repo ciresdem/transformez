@@ -37,6 +37,14 @@ It works in two ways:
 
 * **HTDP / VDatum**: See [NOAA Geodesy Tools](https://geodesy.noaa.gov/TOOLS/Htdp/Htdp.shtml).
 
+**From Pip/PyPi**
+
+```bash
+pip install transformez
+```
+
+**From Source:**
+
 ```bash
 # Clone and install
 git clone https://github.com/ciresdem/transformez.git
