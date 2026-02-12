@@ -152,13 +152,17 @@ geoid = Datums.get_default_geoid(5703)
 
 Transformez supports EPSG codes and compound formats (EPSG:GEOID).
 
-Ellipsoidal: 6319 (NAD83 2011), 4979 (WGS84)
+**Ellipsoidal:** 6319 (NAD83 2011), 4979 (WGS84)
 
-Orthometric: 5703 (NAVD88), 5702 (NGVD29), 3855 (EGM2008)
+**Orthometric:** 5703 (NAVD88), 5702 (NGVD29), 3855 (EGM2008)
 
-Tidal: 5866 (MLLW), 5869 (MHHW), 5714 (MSL)
+**Tidal:** 5866 (MLLW), 5869 (MHHW), 5714 (MSL)
 
-Geoids: g2018, g2012b, xgeoid20b, egm2008
+**Geoids:** g2018, g2012b, xgeoid20b, egm2008
 
 ## License
-MIT
+
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/ciresdem/transformez/blob/main/LICENSE) file for details.
+
+Copyright (c) 2010-2026 Regents of the University of Colorado
+
