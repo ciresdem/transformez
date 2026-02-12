@@ -150,7 +150,7 @@ geoid = Datums.get_default_geoid(5703)
 
 ## Supported Datums
 
-Transformez supports EPSG codes and compound formats (EPSG:GEOID).
+Transformez supports EPSG codes and common vertical datum names.
 
 **Ellipsoidal:** 6319 (NAD83 2011), 4979 (WGS84)
 
