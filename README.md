@@ -2,7 +2,7 @@
 
 **Vertical datum transformations, simplified.**
 
-> ⚠️ **BETA STATUS:** This project is in active development (v0.1.0).
+> ⚠️ **BETA STATUS:** This project is in active development (v0.1.1).
 
 Transformez is a standalone Python library and CLI for converting geospatial data between vertical datums (e.g., MLLW to NAVD88).
 

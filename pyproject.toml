@@ -4,7 +4,7 @@ build-backend = 'setuptools.build_meta'
 
 [project]
 name = 'transformez'
-version = '0.1.0'
+version = '0.1.1'
 description = 'A standalone utility for vertical elevation datum transformations.'
 readme = "README.md"
 authors = [{ name = 'Matthew Love' }]
