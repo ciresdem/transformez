@@ -58,7 +58,7 @@ Generate a generic shift grid for a specific bounding box.
 # -E: Grid resolution (e.g., 3 arc-seconds)
 transformez -R -95.5/-94.5/28.5/29.5 -E 3s \
     --vdatum-in "5866" \
-    --vdatum-out "5703:g2018" \
+    --vdatum-out "5703:geoid=g2018" \
     --output mllw_to_navd88.tif
 ```
 
