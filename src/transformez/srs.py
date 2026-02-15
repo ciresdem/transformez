@@ -14,7 +14,6 @@ and a self generated vertical transformation grid.
 
 import os
 import logging
-import pyproj
 from pyproj import CRS, Transformer
 
 from fetchez.spatial import Region

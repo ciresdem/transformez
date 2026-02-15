@@ -14,7 +14,6 @@ This holds various utility functions.
 import os
 import subprocess
 import logging
-import tempfile
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,6 @@ import sys
 import argparse
 import logging
 
-import pyproj
 import rasterio
 
 from . import __version__
@@ -25,10 +24,9 @@ from .transform import VerticalTransform
 from .definitions import Datums
 from .grid_engine import plot_grid, GridWriter, GridEngine
 
-import fetchez
 from fetchez import spatial
 from fetchez import utils
-from fetchez.spatial import parse_region, Region
+from fetchez.spatial import parse_region
 
 logging.basicConfig(level=logging.INFO, format='[ %(levelname)s ] %(name)s: %(message)s', stream=sys.stderr)
 logger = logging.getLogger(__name__)
@@ -213,7 +211,7 @@ def transformez_cli():
 
         if args.dem:
             # Apply to DEM
-            logger.info(f"Applying transformation to DEM...")
+            logger.info("Applying transformation to DEM...")
             GridEngine.apply_vertical_shift(args.dem, shift_array, dst_grid)
         else:
             # Just write the grid

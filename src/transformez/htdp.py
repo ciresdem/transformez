@@ -11,10 +11,9 @@ This wraps the NGS 'htdp' tool.
 :license: MIT, see LICENSE for more details.
 """
 
-import os
 import sys
 import subprocess
-from typing import Optional, Tuple, List, Union
+from typing import Optional, Tuple, List
 import numpy as np
 
 import logging

@@ -19,7 +19,7 @@ from . import utils
 logger = logging.getLogger(__name__)
 
 vdatum_cmd = 'vdatum.jar -v'
-HAS_VDATUM = utils.cmd_check(f'vdatum.jar', vdatum_cmd).decode()
+HAS_VDATUM = utils.cmd_check('vdatum.jar', vdatum_cmd).decode()
 
 ## ==============================================
 ## NOAA's VDATUM Wrapper

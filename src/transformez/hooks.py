@@ -13,14 +13,12 @@ Some hooks for `fetchez`
 
 import os
 import logging
-import numpy as np
 
 from fetchez.hooks import FetchHook
 from fetchez import utils
 from fetchez import spatial
 
 from .transform import VerticalTransform
-from . import grid_engine
 
 logger = logging.getLogger(__name__)
 

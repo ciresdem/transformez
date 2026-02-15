@@ -13,7 +13,6 @@ Implements a Hub-and-Spoke transformation model centered on NAD83(2011).
 """
 
 import os
-import sys
 import logging
 import numpy as np
 import fetchez

@@ -15,7 +15,6 @@ import os
 import logging
 import numpy as np
 import rasterio
-from rasterio.windows import Window
 from scipy.interpolate import RegularGridInterpolator
 from scipy import ndimage
 
