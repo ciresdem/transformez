@@ -20,7 +20,7 @@ from fetchez.cli import setup_logging
 from transformez import api
 
 TRANSFORMEZ_COMMANDS = {
-    "Execution": ["run", "grid", "raster"],
+    "Execution": ["grid", "raster"],
     "Discovery": ["list", "prefetch"],
     "External": ["htdp", "vdatum"],
 }
