@@ -365,7 +365,7 @@ class VerticalTransform:
             f"Failed to fetch grid '{name}' due to an unknown error."
         )
 
-    def _get_htdp_shift(self, epsg_from, epsg_to, epoch_from, epoch_to):
+    def _get_htdp_shift(self, epsg_from, epsg_to, epoch_from, epoch_to, context=""):
         """Calculate Frame Shift via HTDP with Fallback."""
 
         if epsg_from == epsg_to and epoch_from == epoch_to:
@@ -374,7 +374,10 @@ class VerticalTransform:
         from . import htdp
 
         try:
-            logger.info(f"    [HTDP] Frame Shift: EPSG:{epsg_from} -> EPSG:{epsg_to}")
+            ctx_str = f" {context}" if context else ""
+            logger.info(
+                f"    [HTDP] Frame Shift: EPSG:{epsg_from} -> EPSG:{epsg_to}{ctx_str}"
+            )
             tool = htdp.HTDP(version="3.5.0", verbose=False)
 
             # Attempt 1: Full Cross-Epoch Shift (Datum Shift + Crustal Velocity)
@@ -582,7 +585,11 @@ class VerticalTransform:
 
                     if global_shift is not None and np.any(global_shift):
                         htdp_wgs_to_nad = self._get_htdp_shift(
-                            WGS84_EPSG, NAD83_EPSG, self.epoch_in, 2010.0
+                            WGS84_EPSG,
+                            NAD83_EPSG,
+                            self.epoch_in,
+                            2010.0,
+                            context="(Aligning Global Proxy to NAD83)",
                         )
                         fes_nad83 = global_shift + htdp_wgs_to_nad
                         fes_navd88 = fes_nad83 - geoid_grid
@@ -782,7 +789,11 @@ class VerticalTransform:
         if chain_shift is not None:
             if native_epsg != self.hub_epsg:
                 htdp_shift = self._get_htdp_shift(
-                    native_epsg, self.hub_epsg, epoch, self.epoch_out
+                    native_epsg,
+                    self.hub_epsg,
+                    epoch,
+                    self.epoch_out,
+                    context="(Stepping to Central Hub)",
                 )
                 chain_shift += htdp_shift
                 chain_desc += f" + Frame({native_epsg}->{self.hub_epsg})"
@@ -803,7 +814,11 @@ class VerticalTransform:
 
         if self.hub_epsg != native_epsg:
             htdp_shift = self._get_htdp_shift(
-                self.hub_epsg, native_epsg, self.epoch_in, epoch
+                self.hub_epsg,
+                native_epsg,
+                self.epoch_in,
+                epoch,
+                context="(Extracting from Central Hub)",
             )
             total_out += htdp_shift
             desc_parts.append(f"Hub({self.hub_epsg}->{native_epsg})")
