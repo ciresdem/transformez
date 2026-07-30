@@ -174,7 +174,7 @@ class SRSParser:
 
         s_name = str(s_ident).replace(":", "_").replace(" ", "_").replace("/", "_")
         d_name = str(d_ident).replace(":", "_").replace(" ", "_").replace("/", "_")
-        grid_name = f"_vdatum_trans_{s_name}_{d_name}_{proc_region.format('fn')}.tif"
+        grid_name = f"transformez_{s_name}_{d_name}_{proc_region.format('fn')}.tif"
         self.tc["trans_fn"] = grid_name.replace("\\", "/")
 
         if not os.path.exists(self.tc["trans_fn"]):

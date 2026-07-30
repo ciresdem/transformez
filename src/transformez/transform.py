@@ -164,17 +164,9 @@ class VerticalTransform:
     def fetch_grid_(self, module_name, **kwargs):
         """Generic fetcher wrapper."""
 
-        Mod = fetchez.modules.registry.FetchezRegistry.load_module(module_name)
-        if not Mod:
-            return []
-
-        fetcher = Mod(src_region=self.region, **kwargs)
-        fetcher.run()
-        if fetcher.results:
-            fetchez.core.run_fetchez([fetcher], threads=2)
+        fetched_fns = fetchez.get(module_name, outdir=self.cache_dir, **kwargs)
         valid = []
-        for r in fetcher.results:
-            fn = r["dst_fn"]
+        for fn in fetched_fns:
             if not os.path.exists(fn):
                 continue
 
@@ -487,28 +479,19 @@ class VerticalTransform:
                 logger.info(
                     "    [Coastline] CUSP unavailable. Falling back to Global GSHHG (High Res)..."
                 )
-
             try:
-                gshhg_mod = fetchez.registry.ModuleRegistry.load_module("gshhg")
-                if gshhg_mod:
-                    # Request the 'h' (high) resolution
-                    fetcher = gshhg_mod(
-                        src_region=self.region, outdir=self.cache_dir, resolution="h"
-                    )
-                    fetcher.run()
-                    if fetcher.results:
-                        fetchez.core.run_fetchez([fetcher], threads=2)
+                gshhg_zips = fetchez.get("gshhg", outdir=self.cache_dir)
+                r = "GSHHS_h_L1"
+                for gshhg_zip in gshhg_zips:
+                    if os.path.exists(gshhg_zip) and gshhg_zip.endswith(".zip"):
+                        shp_exts = [".shp", ".shx", ".dbf"]
+                        fns = [f"{r}{x}" for x in shp_exts]
+                        extracted = fetchez.utils.p_f_unzip(
+                            gshhg_zip, fns=fns, outdir=self.cache_dir
+                        )
+                        shps = [f for f in extracted if f.endswith(".shp")]
+                        shapefiles.extend(shps)
 
-                    for r in fetcher.results:
-                        fn = r["dst_fn"]
-                        if os.path.exists(fn) and fn.endswith(".zip"):
-                            shp_exts = [".shp", ".shx", ".dbf"]
-                            fns = [f"{r['data_type']}{x}" for x in shp_exts]
-                            extracted = fetchez.utils.p_f_unzip(
-                                fn, fns=fns, outdir=self.cache_dir
-                            )
-                            shps = [f for f in extracted if f.endswith(".shp")]
-                            shapefiles.extend(shps)
             except Exception as e:
                 logger.error(f"GSHHG fetch failed: {e}")
 
