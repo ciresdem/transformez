@@ -13,6 +13,7 @@ Some modules for `fetchez`
 
 import os
 import logging
+
 from fetchez import cli
 from fetchez.modules import FetchModule
 from transformez.transform import VerticalTransform
@@ -40,6 +41,8 @@ class TransformezMod(FetchModule):
     meta_desc = "Generate vertical datum shift grids on-demand."
     meta_category = "Tools"
     meta_tags = ["vdatum", "transformation", "shift-grid"]
+    meta_resolution = "N/A"
+    meta_license = "N/A"
 
     def __init__(
         self,
