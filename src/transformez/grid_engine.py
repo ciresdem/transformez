@@ -210,7 +210,8 @@ class GridEngine:
                     raise GridCorruptionError(f"Corrupted file deleted: {real_path}")
 
                 logger.exception(f"Failed to reproject {fn}: {e}")
-                continue
+                raise
+
             # except Exception as e:
             #     error_msg = str(e)
 
@@ -415,7 +416,8 @@ class GridEngine:
             return True
         except Exception as e:
             logger.error(f"Failed to apply shift to DEM: {e}")
-            return False
+            # return False
+            raise
 
 
 class GridWriter:
@@ -437,21 +439,24 @@ class GridWriter:
         res_y = (ymax - ymin) / rows
         transform = rasterio.transform.from_origin(xmin, ymax, res_x, res_y)
 
-        with rasterio.open(
-            filename,
-            "w",
-            driver="GTiff",
-            height=rows,
-            width=cols,
-            count=1,
-            dtype="float32",
-            crs="EPSG:4326",
-            transform=transform,
-            compress="deflate",
-            tiled=True,
-        ) as dst:
-            dst.write(data.astype("float32"), 1)
-        return filename
+        try:
+            with rasterio.open(
+                filename,
+                "w",
+                driver="GTiff",
+                height=rows,
+                width=cols,
+                count=1,
+                dtype="float32",
+                crs="EPSG:4326",
+                transform=transform,
+                compress="deflate",
+                tiled=True,
+            ) as dst:
+                dst.write(data.astype("float32"), 1)
+            return filename
+        except Exception:
+            raise
 
 
 def calculate_psmsl_msl(csv_path: str) -> float:
