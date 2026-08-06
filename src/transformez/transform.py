@@ -117,6 +117,7 @@ class VerticalTransform:
             outdir=self.cache_dir,
             threads=2,
             check_size=True,
+            ignore_failures=False,
             **kwargs,
         )
 
@@ -164,7 +165,9 @@ class VerticalTransform:
     def fetch_grid_(self, module_name, **kwargs):
         """Generic fetcher wrapper."""
 
-        fetched_fns = fetchez.get(module_name, outdir=self.cache_dir, **kwargs)
+        fetched_fns = fetchez.get(
+            module_name, outdir=self.cache_dir, ignore_failures=False, **kwargs
+        )
         valid = []
         for fn in fetched_fns:
             if not os.path.exists(fn):
@@ -480,7 +483,9 @@ class VerticalTransform:
                     "    [Coastline] CUSP unavailable. Falling back to Global GSHHG (High Res)..."
                 )
             try:
-                gshhg_zips = fetchez.get("gshhg", outdir=self.cache_dir)
+                gshhg_zips = fetchez.get(
+                    "gshhg", outdir=self.cache_dir, ignore_failtures=False
+                )
                 r = "GSHHS_h_L1"
                 for gshhg_zip in gshhg_zips:
                     if os.path.exists(gshhg_zip) and gshhg_zip.endswith(".zip"):
