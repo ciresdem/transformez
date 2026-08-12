@@ -134,9 +134,22 @@ class VerticalTransform:
                 else:
                     fns_to_extract = None
 
-                extracted = fetchez.utils.p_f_unzip(
-                    fn, fns=fns_to_extract, outdir=self.cache_dir
-                )
+                try:
+                    extracted = fetchez.utils.p_f_unzip(
+                        fn, fns=fns_to_extract, outdir=self.cache_dir
+                    )
+                except OSError as e:
+                    if e.errno == 30 or "Read-only" in str(e):
+                        logger.debug(
+                            f"Read-only cache detected. Assuming {fn} is already unzipped."
+                        )
+                        # The admin already unzipped this. Glob the cache dir for the files.
+                        extracted = []
+                        for root, _, filenames in os.walk(self.cache_dir):
+                            for f in filenames:
+                                extracted.append(os.path.join(root, f))
+                    else:
+                        raise
                 valid.extend(
                     [
                         f
@@ -180,9 +193,23 @@ class VerticalTransform:
                 else:
                     fns_to_extract = None
 
-                extracted = fetchez.utils.p_f_unzip(
-                    fn, fns=fns_to_extract, outdir=self.cache_dir
-                )
+                try:
+                    extracted = fetchez.utils.p_f_unzip(
+                        fn, fns=fns_to_extract, outdir=self.cache_dir
+                    )
+                except Exception as e:
+                    if e.errno == 30 or "Read-only" in str(e):
+                        logger.debug(
+                            f"Read-only cache detected. Assuming {fn} is already unzipped."
+                        )
+                        # The admin already unzipped this. Glob the cache dir for the files.
+                        extracted = []
+                        for root, _, filenames in os.walk(self.cache_dir):
+                            for f in filenames:
+                                extracted.append(os.path.join(root, f))
+                    else:
+                        raise
+
                 valid.extend(
                     [
                         f
@@ -491,9 +518,23 @@ class VerticalTransform:
                     if os.path.exists(gshhg_zip) and gshhg_zip.endswith(".zip"):
                         shp_exts = [".shp", ".shx", ".dbf"]
                         fns = [f"{r}{x}" for x in shp_exts]
-                        extracted = fetchez.utils.p_f_unzip(
-                            gshhg_zip, fns=fns, outdir=self.cache_dir
-                        )
+                        try:
+                            extracted = fetchez.utils.p_f_unzip(
+                                gshhg_zip, fns=fns, outdir=self.cache_dir
+                            )
+                        except Exception as e:
+                            if e.errno == 30 or "Read-only" in str(e):
+                                logger.debug(
+                                    f"Read-only cache detected. Assuming {gshhg_zip} is already unzipped."
+                                )
+                                # The admin already unzipped this. Glob the cache dir for the files.
+                                extracted = []
+                                for root, _, filenames in os.walk(self.cache_dir):
+                                    for f in filenames:
+                                        extracted.append(os.path.join(root, f))
+                            else:
+                                raise
+
                         shps = [f for f in extracted if f.endswith(".shp")]
                         shapefiles.extend(shps)
 

@@ -225,7 +225,7 @@ def transform_raster(
     """
 
     import rasterio
-    from rasterio.warp import transform_bounds, reproject, Resampling
+    from rasterio.warp import transform_bounds
     from rasterio.transform import from_bounds
     from fetchez.spatial import Region
 
@@ -308,7 +308,7 @@ def transform_raster(
         return None
 
     if is_projected:
-        logger.info("Warping shift grid back to native raster projection...")
+        logger.debug("Streaming raster via windowed I/O...")
         wgs_transform = from_bounds(
             region_obj.xmin,
             region_obj.ymin,
@@ -317,21 +317,27 @@ def transform_raster(
             vt_nx,
             vt_ny,
         )
-        native_shift_array = np.zeros((ny, nx), dtype=np.float32)
 
-        reproject(
-            source=shift_array,
-            destination=native_shift_array,
-            src_transform=wgs_transform,
-            src_crs="EPSG:4326",
-            dst_transform=native_transform,
-            dst_crs=native_crs,
-            resampling=Resampling.bilinear,
+        success = GridEngine.apply_vertical_shift(
+            src_dem=input_raster,
+            shift_array=shift_array,
+            dst_dem=output_raster,
+            z_unit_in=z_unit_in,
+            z_unit_out=z_unit_out,
+            shift_transform=wgs_transform,
+            shift_crs="EPSG:4326",
+        )
+    else:
+        # If it's already in Geographic (EPSG:4326), just pass it standardly
+        success = GridEngine.apply_vertical_shift(
+            src_dem=input_raster,
+            shift_array=shift_array,
+            dst_dem=output_raster,
+            z_unit_in=z_unit_in,
+            z_unit_out=z_unit_out,
         )
 
-        shift_array = native_shift_array
-
-    if save_shift:
+    if save_shift and not is_projected:
         shift_fn = f"{os.path.splitext(output_raster)[0]}_shiftgrid.tif"
         logger.info(f"Saving aligned shift grid to {shift_fn}...")
         with rasterio.open(
@@ -347,14 +353,10 @@ def transform_raster(
             nodata=-9999.0,
         ) as dst:
             dst.write(shift_array, 1)
-
-    success = GridEngine.apply_vertical_shift(
-        input_raster,
-        shift_array,
-        output_raster,
-        z_unit_in=z_unit_in,
-        z_unit_out=z_unit_out,
-    )
+    elif save_shift and is_projected:
+        logger.warning(
+            "Skipping --save-shift: Cannot export a dense native shift grid for memory-safe projected runs."
+        )
 
     if success:
         return output_raster
