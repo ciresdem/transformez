@@ -391,6 +391,7 @@ class GridEngine:
         try:
             with rasterio.open(src_dem) as src:
                 profile = src.profile.copy()
+                profile.update(dtype="float32")
 
                 if not profile.get("tiled"):
                     profile.update(tiled=True, blockxsize=256, blockysize=256)
@@ -400,10 +401,15 @@ class GridEngine:
 
                 with rasterio.open(dst_dem, "w", **profile) as dst:
                     for ji, window in dst.block_windows(1):
-                        data_chunk = src.read(1, window=window)
-                        if np.all(data_chunk == nodata):
-                            dst.write(data_chunk, 1, window=window)
-                            continue
+                        data_chunk = src.read(1, window=window).astype(np.float32)
+                        if np.isnan(nodata):
+                            if np.all(np.isnan(data_chunk)):
+                                dst.write(data_chunk, 1, window=window)
+                                continue
+                        else:
+                            if np.all((data_chunk == nodata) | np.isnan(data_chunk)):
+                                dst.write(data_chunk, 1, window=window)
+                                continue
 
                         if shift_transform and shift_crs:
                             window_transform = src.window_transform(window)
@@ -419,12 +425,30 @@ class GridEngine:
                                 resampling=Resampling.bilinear,
                             )
                         else:
-                            local_shift = shift_array[
-                                window.row_off : window.row_off + window.height,
-                                window.col_off : window.col_off + window.width,
-                            ]
+                            row_start = int(window.row_off)
+                            row_end = int(window.row_off + window.height)
+                            col_start = int(window.col_off)
+                            col_end = int(window.col_off + window.width)
 
-                        valid_mask = (data_chunk != nodata) & (~np.isnan(local_shift))
+                            local_shift = shift_array[
+                                row_start:row_end, col_start:col_end
+                            ]
+                            # local_shift = shift_array[
+                            #     window.row_off : window.row_off + window.height,
+                            #     window.col_off : window.col_off + window.width,
+                            # ]
+
+                        if src.nodata is None or np.isnan(src.nodata):
+                            valid_mask = (~np.isnan(data_chunk)) & (
+                                ~np.isnan(local_shift)
+                            )
+                        else:
+                            valid_mask = (
+                                (data_chunk != nodata)
+                                & (~np.isnan(data_chunk))
+                                & (~np.isnan(local_shift))
+                            )
+                        # valid_mask = (data_chunk != nodata) & (~np.isnan(local_shift))
 
                         data_meters = data_chunk[valid_mask] * factor_in
                         data_shifted_meters = data_meters + local_shift[valid_mask]
