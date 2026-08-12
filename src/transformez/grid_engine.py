@@ -372,11 +372,18 @@ class GridEngine:
 
     @staticmethod
     def apply_vertical_shift(
-        src_dem, shift_array, dst_dem, z_unit_in="m", z_unit_out="m"
+        src_dem,
+        shift_array,
+        dst_dem,
+        z_unit_in="m",
+        z_unit_out="m",
+        shift_transform=None,
+        shift_crs=None,
     ):
-        """Apply a vertical shift array to a source DEM."""
+        """Apply a vertical shift array to a source DEM using memory-safe windowed I/O."""
 
         from .definitions import Datums
+        from rasterio.warp import reproject, Resampling
 
         factor_in = Datums.get_unit_factor(z_unit_in)
         factor_out = Datums.get_unit_factor(z_unit_out)
@@ -384,40 +391,55 @@ class GridEngine:
         try:
             with rasterio.open(src_dem) as src:
                 profile = src.profile.copy()
-                data = src.read(1)
 
-                if data.shape != shift_array.shape:
-                    raise ValueError(
-                        f"Dimension mismatch: DEM {data.shape} vs Shift {shift_array.shape}"
-                    )
+                if not profile.get("tiled"):
+                    profile.update(tiled=True, blockxsize=256, blockysize=256)
 
-                nodata = src.nodata if src.nodata is not None else -9999
+                nodata = src.nodata if src.nodata is not None else -9999.0
                 profile.update(nodata=nodata)
 
-                valid_mask = (data != nodata) & (~np.isnan(shift_array))
-
-                # Scale input to meters
-                data_meters = data[valid_mask] * factor_in
-
-                # Add the meter-based datum shift
-                data_shifted_meters = data_meters + shift_array[valid_mask]
-
-                # Scale to target output units
-                data[valid_mask] = data_shifted_meters / factor_out
-                data[~valid_mask] = nodata
-
-                # valid_mask = (data != nodata) & (~np.isnan(shift_array))
-                # data[valid_mask] += shift_array[valid_mask]
-                # data[~valid_mask] = nodata
-
                 with rasterio.open(dst_dem, "w", **profile) as dst:
-                    dst.write(data, 1)
-            logger.info(f"Successfully wrote transformed DEM to: {dst_dem}")
+                    for ji, window in dst.block_windows(1):
+                        data_chunk = src.read(1, window=window)
+                        if np.all(data_chunk == nodata):
+                            dst.write(data_chunk, 1, window=window)
+                            continue
+
+                        if shift_transform and shift_crs:
+                            window_transform = src.window_transform(window)
+                            local_shift = np.zeros(data_chunk.shape, dtype=np.float32)
+
+                            reproject(
+                                source=shift_array,
+                                destination=local_shift,
+                                src_transform=shift_transform,
+                                src_crs=shift_crs,
+                                dst_transform=window_transform,
+                                dst_crs=src.crs,
+                                resampling=Resampling.bilinear,
+                            )
+                        else:
+                            local_shift = shift_array[
+                                window.row_off : window.row_off + window.height,
+                                window.col_off : window.col_off + window.width,
+                            ]
+
+                        valid_mask = (data_chunk != nodata) & (~np.isnan(local_shift))
+
+                        data_meters = data_chunk[valid_mask] * factor_in
+                        data_shifted_meters = data_meters + local_shift[valid_mask]
+
+                        data_chunk[valid_mask] = data_shifted_meters / factor_out
+                        data_chunk[~valid_mask] = nodata
+
+                        dst.write(data_chunk, 1, window=window)
+
+            logger.info(f"Successfully wrote memory-safe transformed DEM to: {dst_dem}")
             return True
+
         except Exception as e:
             logger.error(f"Failed to apply shift to DEM: {e}")
-            # return False
-            raise
+            return False
 
 
 class GridWriter:
