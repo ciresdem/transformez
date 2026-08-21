@@ -458,16 +458,25 @@ class VerticalTransform:
         for g in geoids_to_try:
             geoid_def = Datums.GEOIDS.get(g, {})
             provider = geoid_def.get("provider", "proj")
-            grid = self._get_grid(provider, g)
 
-            if np.any(grid):
-                if g != target_geoid and self.verbose:
-                    logger.info(
-                        f"    [Geoid Fallback] '{target_geoid}' lacks coverage here. Falling back to '{g}'."
-                    )
-                return grid, g
+            try:
+                grid = self._get_grid(provider, g)
+                if np.any(grid):
+                    if g != target_geoid and self.verbose:
+                        logger.info(
+                            f"    [Geoid Fallback] '{target_geoid}' lacks coverage here. Falling back to '{g}'."
+                        )
+                    return grid, g
+            except MissingGridError:
+                logger.debug(
+                    f"    [Geoid Check] '{g}' missing or out of bounds. Trying next fallback..."
+                )
+                continue
 
-        return np.zeros((self.ny, self.nx)), target_geoid
+        raise MissingGridError(
+            f"Geoid '{target_geoid}' and all fallbacks lack coverage or failed to download."
+        )
+        # return np.zeros((self.ny, self.nx)), target_geoid
 
     def _fetch_coastline_shapefiles(self):
         """Fetches vector coastlines for the bounding box.
@@ -559,15 +568,25 @@ class VerticalTransform:
 
         # Tidal -> LMSL
         if datum_name not in ["msl", "5714", "lmsl"]:
-            grid = self._get_grid("vdatum", datum_name)
-            if np.isnan(grid).all() or (grid == 0).all():
+            try:
+                grid = self._get_grid("vdatum", datum_name)
+                if np.isnan(grid).all() or (grid == 0).all():
+                    grid = np.full((self.ny, self.nx), np.nan)
+            except MissingGridError:
+                logger.debug(
+                    f"    [VDatum Check] '{datum_name}' missing. Flagging for offshore proxy."
+                )
                 grid = np.full((self.ny, self.nx), np.nan)
+
             hydro_shift += grid
             desc.append(f"({datum_name}->LMSL)")
 
         # LMSL -> Ortho (TSS)
-        tss = self._get_grid("vdatum", "tss")
-        if np.isnan(tss).all() or (tss == 0).all():
+        try:
+            tss = self._get_grid("vdatum", "tss")
+            if np.isnan(tss).all() or (tss == 0).all():
+                tss = np.full((self.ny, self.nx), np.nan)
+        except MissingGridError:
             tss = np.full((self.ny, self.nx), np.nan)
 
         hydro_shift -= tss
