@@ -1,10 +1,8 @@
 # 🗺️ Supported Datums & Vertical Reference
-It can be tempting to make the assumption that vertical datums are simple, flat offsets. In reality, the earth is bumpy, gravity is inconsistent, and the ocean is in constant motion.
-
-To achieve survey-grade accuracy, `transformez` categorizes elevations into three distinct physical models. Understanding the difference between these is critical for accurate geospatial modeling.
+Transformez categorizes elevations into three distinct physical models.
 
 ## 🌊 Tidal Datums (The Dynamic Ocean)
-Tidal datums are defined by observing water levels at coastal tide gauges over a 19-year National Tidal Datum Epoch (NTDE). Since **the ocean is not flat**, due to coastal funneling, bathymetric friction, Coriolis effects, etc., a tidal surface like Mean Lower Low Water (MLLW) curves and changes drastically as you move from the open ocean into a shallow estuary. Therefore, tidal datums are inherently spatial and should not be represented by a single, constant conversion number, especially over wide areas.
+Tidal datums are defined by observing water levels at coastal tide gauges over a 19-year National Tidal Datum Epoch (NTDE). Since **the ocean is not flat**, due to coastal funneling, bathymetric friction, Coriolis effects, etc., a tidal surface like Mean Lower Low Water (MLLW) curves and changes drastically as you move from the open ocean into a shallow estuary. Therefore, tidal datums are inherently spatial and should not generally be represented by a single, constant conversion number, especially over wide areas.
 
 **Supported Tidal Surfaces:**
 
