@@ -416,9 +416,9 @@ def prefetch_region(
                 verbose=verbose,
             )
 
-            # Vector Coastline Tiles (GSHHG / CUSP)
-            logger.info(" -> [1/5] Fetching coastline vector tiles...")
-            vt._fetch_coastline_shapefiles()
+            # Dist2Coast landmask
+            logger.info(" -> [1/5] Fetching Dist2Coast land mask...")
+            vt._fetch_ocean_mask()
 
             # All Registered Geoids
             logger.info(" -> [2/5] Fetching Geoid grids...")

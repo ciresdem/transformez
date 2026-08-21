@@ -430,8 +430,8 @@ class Datums:
     }
 
     MODELS: Dict[str, Dict[str, Any]] = {
-        "fes2014": {"provider": "seanoe", "grids": {"lat": "LAT", "mss": "MSL"}},
-        "dtu10": {"provider": "dtu", "grids": {"mss": "mss", "mdt": "mdt"}},
+        "fes2014": {"provider": "seanoe", "grids": {"lat": "lat", "mss": "msl"}},
+        "dtu25": {"provider": "transformez.dtu", "grids": {"mss": "mss25"}},
         "egm2008": {"provider": "proj", "grid": "egm2008"},
     }
 

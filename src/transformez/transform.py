@@ -329,7 +329,7 @@ class VerticalTransform:
             if not files:
                 # return np.zeros((self.ny, self.nx))
                 if attempt < max_retries - 1:
-                    logger.warning(
+                    logger.debug(
                         f"Grid '{name}' not found. Wiping cache for '{provider}' and retrying (Attempt {attempt + 2}/{max_retries})..."
                     )
 
@@ -345,9 +345,10 @@ class VerticalTransform:
                                     pass
                     continue
                 else:
-                    logger.error(
-                        f"FATAL: Max retries exhausted. Could not locate grid '{name}' from '{provider}'."
+                    logger.debug(
+                        f"Grid probe failed: Could not locate grid '{name}' from '{provider}'. Falling back..."
                     )
+
                     raise MissingGridError(
                         f"Required shift grid '{name}' is missing or unavailable."
                     )
@@ -478,84 +479,34 @@ class VerticalTransform:
         )
         # return np.zeros((self.ny, self.nx)), target_geoid
 
-    def _fetch_coastline_shapefiles(self):
-        """Fetches vector coastlines for the bounding box.
-        Attempts NOAA CUSP first (USA). Falls back to GSHHG (Global).
-        Returns a list of local shapefile paths.
-        """
+    def _fetch_ocean_mask(self):
+        """Fetches NASA Dist2Coast raster and thresholds it into a boolean land mask."""
 
-        shapefiles = []
+        logger.info("    [Coastline] Fetching Dist2Coast raster for inland masking...")
 
-        # CUSP fails too often, may be a bug, or their servers;
-        # Will look into it, but just use ghssg for now to keep
-        # the logging sane.
-        # Attempt NOAA CUSP (High-Res US)
-        # if self.verbose:
-        #     logger.info("    [Coastline] Attempting to fetch NOAA CUSP tiles...")
-
-        # try:
-        #     cusp_mod = fetchez.registry.ModuleRegistry.load_module("cusp")
-        #     if cusp_mod:
-        #         fetcher = cusp_mod(src_region=self.region, outdir=self.cache_dir)
-        #         fetcher.run()
-        #         if fetcher.results:
-        #             fetchez.core.run_fetchez([fetcher], threads=2)
-
-        #         for r in fetcher.results:
-        #             fn = r["dst_fn"]
-        #             if os.path.exists(fn) and fn.endswith(".zip"):
-        #                 extracted = fetchez.utils.p_f_unzip(fn, outdir=self.cache_dir)
-        #                 # Find all shapefiles in the extracted payload
-        #                 shps = [f for f in extracted if f.endswith(".shp")]
-        #                 shapefiles.extend(shps)
-
-        # except Exception as e:
-        #     logger.warning(f"CUSP fetch failed: {e}")
-
-        # Fallback to Global GSHHG
-        if not shapefiles:
-            if self.verbose:
-                logger.info(
-                    "    [Coastline] CUSP unavailable. Falling back to Global GSHHG (High Res)..."
+        try:
+            d2c_files = self.fetch_grid("dist2coast", variant="base")
+            if not d2c_files:
+                logger.warning(
+                    "    [Coastline] Dist2Coast fetch failed. No land mask applied."
                 )
-            try:
-                gshhg_zips = fetchez.get(
-                    "gshhg", outdir=self.cache_dir, ignore_failtures=False
-                )
-                r = "GSHHS_h_L1"
-                for gshhg_zip in gshhg_zips:
-                    if os.path.exists(gshhg_zip) and gshhg_zip.endswith(".zip"):
-                        shp_exts = [".shp", ".shx", ".dbf"]
-                        fns = [f"{r}{x}" for x in shp_exts]
-                        try:
-                            extracted = fetchez.utils.p_f_unzip(
-                                gshhg_zip, fns=fns, outdir=self.cache_dir
-                            )
-                        except Exception as e:
-                            if e.errno == 30 or "Read-only" in str(e):
-                                logger.debug(
-                                    f"Read-only cache detected. Assuming {gshhg_zip} is already unzipped."
-                                )
-                                # The admin already unzipped this. Glob the cache dir for the files.
-                                extracted = []
-                                for root, _, filenames in os.walk(self.cache_dir):
-                                    for f in filenames:
-                                        extracted.append(os.path.join(root, f))
-                            else:
-                                raise
+                return None
 
-                        shps = [f for f in extracted if f.endswith(".shp")]
-                        shapefiles.extend(shps)
-
-            except Exception as e:
-                logger.error(f"GSHHG fetch failed: {e}")
-
-        if shapefiles and self.verbose:
-            logger.info(
-                f"    [Coastline] Secured {len(shapefiles)} vector tiles for inland masking."
+            nc_path = f"netcdf:{d2c_files[0]}:dist"
+            d2c_grid = GridEngine.load_and_interpolate(
+                [nc_path], self.region, self.nx, self.ny, decay_pixels=0
             )
 
-        return shapefiles
+            ocean_mask = d2c_grid > 0
+
+            logger.info("    [Coastline] Successfully generated raster land mask.")
+            return ocean_mask
+
+        except Exception as e:
+            logger.error(
+                f"    [Coastline] Failed to generate land mask from Dist2Coast: {e}"
+            )
+            return None
 
     # =========================================================================
     # Chains
@@ -603,17 +554,13 @@ class VerticalTransform:
         total_shift = np.zeros((self.ny, self.nx))
 
         if np.isnan(hydro_shift).any():
-            coast_shapefiles = self._fetch_coastline_shapefiles()
+            ocean_mask = self._fetch_ocean_mask()
             proxy_name = Datums.get_global_proxy(datum_name)
 
-            land_mask = None
-            if coast_shapefiles:
-                land_mask = GridEngine.create_land_mask(
-                    self.region, self.nx, self.ny, coast_shapefiles
-                )
-                if land_mask is not None:
-                    valid_vdatum = ~np.isnan(hydro_shift)
-                    land_mask[valid_vdatum] = True
+            if ocean_mask is not None:
+                # Carve out the VDatum rivers so they aren't treated as land!
+                valid_vdatum = ~np.isnan(hydro_shift)
+                ocean_mask[valid_vdatum] = False
 
             if self.use_stations:
                 logger.info("    [Override] Forcing Tide Station RBF interpolation...")
@@ -623,7 +570,6 @@ class VerticalTransform:
                     self.ny,
                     datum_in=datum_name,
                     datum_out="msl",
-                    shapefiles=coast_shapefiles,
                 )
 
                 if rbf_grid is not None:
@@ -650,7 +596,7 @@ class VerticalTransform:
                             hydro_shift,
                             decay_pixels=self.decay_pixels,
                             buffer_pixels=10,
-                            land_mask=land_mask,
+                            ocean_mask=ocean_mask,
                         )
                         desc.append("Station RBF (Tidal) + FES (MSS) + Inland Decay")
                     else:
@@ -659,7 +605,7 @@ class VerticalTransform:
                             hydro_shift,
                             decay_pixels=self.decay_pixels,
                             buffer_pixels=10,
-                            land_mask=land_mask,
+                            ocean_mask=ocean_mask,
                         )
                         desc.append("Inland Hydro Decay")
                 else:
@@ -668,7 +614,7 @@ class VerticalTransform:
                         hydro_shift,
                         decay_pixels=self.decay_pixels,
                         buffer_pixels=10,
-                        land_mask=land_mask,
+                        ocean_mask=ocean_mask,
                     )
                     desc.append("Inland Hydro Decay")
 
@@ -692,7 +638,7 @@ class VerticalTransform:
                         region=self.region,
                         nx=self.nx,
                         ny=self.ny,
-                        land_mask=land_mask,
+                        ocean_mask=ocean_mask,
                         decay_pixels=self.decay_pixels,
                         buffer_pixels=10,
                     )
@@ -702,7 +648,7 @@ class VerticalTransform:
                         hydro_shift,
                         decay_pixels=self.decay_pixels,
                         buffer_pixels=10,
-                        land_mask=land_mask,
+                        ocean_mask=ocean_mask,
                     )
                     desc.append("Inland Hydro Decay")
             else:
@@ -710,7 +656,7 @@ class VerticalTransform:
                     hydro_shift,
                     decay_pixels=self.decay_pixels,
                     buffer_pixels=10,
-                    land_mask=land_mask,
+                    ocean_mask=ocean_mask,
                 )
                 desc.append("Inland Hydro Decay")
 
@@ -720,6 +666,61 @@ class VerticalTransform:
         return total_shift, " + ".join(desc)
 
     def _get_global_chain(self, datum_name, model="fes2014"):
+        """Builds shift: Global Tidal -> WGS84 Native."""
+
+        tidal_shift = np.zeros((self.ny, self.nx))
+        # mss_shift = np.zeros((self.ny, self.nx))
+        desc = []
+
+        # Translate the local datum (e.g. mllw) to the global proxy (e.g. lat)
+        proxy_name = Datums.get_global_proxy(datum_name)
+
+        # DTU25 MSS Baseline (Absolute height above WGS84)
+        try:
+            mss_grid = self._get_grid("transformez.dtu", "mss25")
+            if np.any(mss_grid):
+                desc.append("DTU25_MSS")
+        except Exception:
+            logger.debug("    [Global Chain] DTU25 MSS unavailable.")
+            return np.zeros((self.ny, self.nx)), "Global Chain Failed"
+
+        # Tidal Extreme Offsets (FES2014 via seanoe)
+        if proxy_name == "lat":
+            try:
+                lat_grid = self._get_grid("seanoe", "lat")
+                if np.nanmean(lat_grid) > 0:
+                    lat_grid *= -1.0
+                tidal_shift += lat_grid
+                desc.append("Global(LAT)")
+            except Exception:
+                logger.debug("    [Global Chain] FES2014 LAT unavailable.")
+
+        elif proxy_name == "hat":
+            try:
+                lat_grid = self._get_grid("seanoe", "lat")
+                if np.nanmean(lat_grid) > 0:
+                    lat_grid *= -1.0
+                tidal_shift += lat_grid * -1.0
+                desc.append("Global(HAT)")
+            except Exception:
+                logger.debug("    [Global Chain] FES2014 HAT unavailable.")
+
+        # Coastal Mask to MDT / Tidal Arrays
+        ocean_mask = self._fetch_ocean_mask()
+
+        tidal_shift = GridEngine.fill_nans(
+            tidal_shift,
+            decay_pixels=self.decay_pixels,
+            buffer_pixels=10,
+            ocean_mask=ocean_mask,
+        )
+
+        total_shift = mss_grid + tidal_shift
+        total_shift[np.isnan(total_shift)] = 0.0
+
+        return total_shift, " + ".join(desc)
+
+    def _get_global_chain_depreciated(self, datum_name, model="fes2014"):
         """Builds shift: Global Tidal -> WGS84 Native."""
 
         tidal_shift = np.zeros((self.ny, self.nx))
@@ -767,19 +768,14 @@ class VerticalTransform:
             mdt_grid = mss_grid - egm_grid
             desc.append("MDT Decay -> EGM2008")
 
-        coast_shapefiles = self._fetch_coastline_shapefiles()
-        land_mask = None
-        if coast_shapefiles:
-            land_mask = GridEngine.create_land_mask(
-                self.region, self.nx, self.ny, coast_shapefiles
-            )
+        ocean_mask = self._fetch_ocean_mask()
 
         if mss_name:
             mdt_decayed = GridEngine.fill_nans(
                 mdt_grid,
                 decay_pixels=self.decay_pixels,
                 buffer_pixels=10,
-                land_mask=land_mask,
+                ocean_mask=ocean_mask,
             )
             mss_shift = mdt_decayed + egm_grid
 
@@ -787,7 +783,7 @@ class VerticalTransform:
             tidal_shift,
             decay_pixels=self.decay_pixels,
             buffer_pixels=10,
-            land_mask=land_mask,
+            ocean_mask=ocean_mask,
         )
 
         total_shift = tidal_shift + mss_shift

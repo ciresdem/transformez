@@ -28,8 +28,6 @@ dependencies = [
     'numpy>1.24',
     'pyproj>3.6.1',
     'rasterio>1.4.0',
-    'pyogrio>=0.7.0',
-    'shapely>=2.0.0',
     'fetchez>=0.6.0',
     'scipy',
     'click',
@@ -59,7 +57,7 @@ docs = [
 ]
 
 [project.entry-points."fetchez.modules"]
-transformez = "transformez"
+transformez_modules = "transformez.modules"
 
 [project.scripts]
 transformez = 'transformez.cli:transformez_cli'
