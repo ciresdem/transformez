@@ -23,6 +23,8 @@ nitpicky = True
 nitpick_ignore = [
     ("py:data", "typing.Union"),
     ("py:class", "wsgiref.types.WSGIEnvironment"),
+    ("py:class", "tkinter.getint"),
+    ("py:class", "tkinter.getdoublxse"),
 ]
 
 extensions = [
@@ -32,10 +34,12 @@ extensions = [
     "sphinx.ext.intersphinx",  # Link to other projects' docs
     "sphinx.ext.viewcode",  # Add links to source code
     "sphinx.ext.githubpages",  # Auto-generate .nojekyll for GH Pages
-    # "sphinx_argparse_cli",  # argparse
     "sphinx_click",
     "myst_parser",  # Parse Markdown files
+    "sphinxcontrib.mermaid",  # mermaid support
 ]
+
+myst_fence_as_directive = ["mermaid"]
 
 sphinx_click_mock_imports = []
 

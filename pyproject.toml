@@ -54,6 +54,7 @@ docs = [
     "sphinx-click>=6.0",
     "pydata-sphinx-theme",
     "myst-parser",
+    "sphinxcontrib-mermaid",
 ]
 
 [project.entry-points."fetchez.modules"]
