@@ -31,7 +31,7 @@ import os
 import glob
 
 # Expose the module for fetchez
-from .modules import TransformezMod
+# from .modules import TransformezMod
 
 
 def _find_proj_lib():
@@ -73,4 +73,4 @@ if "PROJ_LIB" in os.environ:
 if target_proj_lib:
     os.environ["PROJ_LIB"] = target_proj_lib
 
-__all__ = ["generate_grid", "transform_raster", "TransformezMod"]
+__all__ = ["generate_grid", "transform_raster"]

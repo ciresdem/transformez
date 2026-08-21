@@ -79,63 +79,6 @@ def plot_grid(grid_array, region, title="Vertical Shift Preview"):
 
 class GridEngine:
     @staticmethod
-    def create_land_mask(region, nx, ny, vector_files):
-        """Reads a list of vector files and rasterizes them into a boolean land mask.
-        Returns a numpy boolean array where True = Land, False = Ocean.
-        """
-
-        try:
-            from pyogrio.raw import read
-            import shapely
-            from rasterio.features import rasterize
-
-        except ImportError:
-            logger.warning(
-                "pyogrio and shapely are required for vector coastline masking."
-            )
-            return None
-
-        transform = from_bounds(
-            region.xmin, region.ymin, region.xmax, region.ymax, nx, ny
-        )
-
-        geoms = []
-        for vec_path in vector_files:
-            try:
-                # Use bbox filtering in pyogrio to speed up reading vectors
-                bbox = (region.xmin, region.ymin, region.xmax, region.ymax)
-
-                # pyogrio raw read returns a tuple: (meta, geometry_wkb, field_data)
-                meta, fids, geometry_wkb, fields = read(vec_path, bbox=bbox)
-
-                if len(geometry_wkb) > 0:
-                    # Convert WKB directly to shapely geometries
-                    # We also filter out any None/Null geometries
-                    valid_geoms = [
-                        g for g in shapely.from_wkb(geometry_wkb) if g is not None
-                    ]
-                    geoms.extend(valid_geoms)
-
-            except Exception as e:
-                logger.warning(f"Failed reading coastline vector {vec_path}: {e}")
-
-        if not geoms:
-            return None
-
-        # Rasterize: Fill background with 0 (Ocean), draw shapes as 1 (Land)
-        mask = rasterize(
-            geoms,
-            out_shape=(ny, nx),
-            transform=transform,
-            default_value=0,
-            fill=1,
-            dtype=np.uint8,
-            all_touched=True,
-        )
-
-        return mask.astype(bool)
-
-    @staticmethod
     def load_and_interpolate(source_files, target_region, nx, ny, decay_pixels=100):
         """Composites grids using GDAL Warper."""
 
@@ -279,8 +222,7 @@ class GridEngine:
         region,
         nx,
         ny,
-        shapefiles=None,  # Deprecated
-        land_mask=None,
+        ocean_mask=None,
         decay_pixels=100,
         buffer_pixels=10,
         blend_pixels=50,
@@ -291,15 +233,8 @@ class GridEngine:
 
         final_grid = vdatum_grid.copy()
 
-        # Fallback just in case shapefiles are passed directly
-        if shapefiles and land_mask is None:
-            land_mask = GridEngine.create_land_mask(region, nx, ny, shapefiles)
-            if land_mask is not None:
-                # Carve out the VDatum rivers!
-                land_mask[~np.isnan(vdatum_grid)] = False
-
-        if land_mask is not None:
-            global_grid[~land_mask] = np.nan
+        if ocean_mask is not None:
+            global_grid[~ocean_mask] = np.nan
 
         is_vdatum = ~np.isnan(vdatum_grid)
         is_ocean = ~np.isnan(global_grid)
@@ -318,22 +253,22 @@ class GridEngine:
                 final_grid,
                 decay_pixels=decay_pixels,
                 buffer_pixels=buffer_pixels,
-                land_mask=land_mask,
+                ocean_mask=ocean_mask,
             )
             final_grid[is_inland] = decayed_inland[is_inland]
 
         return final_grid
 
     @staticmethod
-    def fill_nans(data, decay_pixels=100, buffer_pixels=10, land_mask=None):
+    def fill_nans(data, decay_pixels=100, buffer_pixels=10, ocean_mask=None):
         """Fills NaNs by extrapolating nearest valid coastal values.
         Melted Voronoi ridges ensure C1 continuity deep inland.
         """
 
         out_data = data.copy()
 
-        if land_mask is not None:
-            out_data[~land_mask] = np.nan
+        if ocean_mask is not None:
+            out_data[~ocean_mask] = np.nan
 
         mask = np.isnan(out_data)
         if not mask.any() or mask.all():
@@ -660,11 +595,5 @@ class GridGen:
             XI, YI = np.meshgrid(xi, yi)
             rbf_grid = rbf(XI, YI).astype(np.float32)
             rbf_grid = np.clip(rbf_grid, min(z), max(z))
-
-        if shapefiles:
-            logger.info("Applying vector coastline mask to station surface...")
-            land_mask = GridEngine.create_land_mask(region, nx, ny, shapefiles)
-            if land_mask is not None:
-                rbf_grid[~land_mask] = np.nan
 
         return rbf_grid
