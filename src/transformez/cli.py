@@ -13,6 +13,7 @@ The command-line interface for Transformez.
 
 import sys
 import click
+from typing import Optional, Any
 
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
 from fetchez.cli import setup_logging
@@ -29,48 +30,6 @@ TRANSFORMEZ_COMMANDS = {
 class TransformezMainGroup(FetchezMainGroup):
     """A custom Click Group that handles deprecated aliases."""
 
-    pass
-    # def get_command(self, ctx, cmd_name):
-    #     if cmd_name == "run":
-    #         click.secho(
-    #             " DEPRECATION WARNING: 'transformez run' is deprecated and will be removed in a future release.\n"
-    #             "Please use 'transformez grid' to generate shift grids or 'transformez raster' to shift a raster.",
-    #             fg="yellow",
-    #             err=True,
-    #         )
-    #         return click.Group.get_command(self, ctx, "run")
-
-    #     return click.Group.get_command(self, ctx, cmd_name)
-
-    # def format_commands(self, ctx, formatter):
-    #     commands = []
-    #     for subcommand in self.list_commands(ctx):
-    #         cmd = self.get_command(ctx, subcommand)
-    #         if cmd is None or cmd.hidden:
-    #             continue
-    #         commands.append((subcommand, cmd))
-
-    #     if not commands:
-    #         return
-
-    #     categories = {
-    #         f"{colorize('Execution', YELLOW)}": ["run", "grid", "raster"],
-    #         f"{colorize('Discovery & Management', YELLOW)}": [
-    #             "list",
-    #             "htdp",
-    #             "vdatum",
-    #         ],
-    #     }
-
-    #     for cat_name, cmd_names in categories.items():
-    #         with formatter.section(cat_name):
-    #             cat_cmds = [
-    #                 (f"{colorize(name, BOLD):<17}", cmd.get_short_help_str(limit=80))
-    #                 for name, cmd in commands
-    #                 if name in cmd_names
-    #             ]
-    #             formatter.write_dl(cat_cmds)
-
 
 @click.group(
     name="transform",
@@ -80,11 +39,10 @@ class TransformezMainGroup(FetchezMainGroup):
 @click.version_option(package_name="transformez")
 @click.option("--verbose", is_flag=True, help="Enable verbose debug logging.")
 @click.option("--quiet", is_flag=True, help="Suppress non-error output.")
-def transformez_cli(verbose, quiet):
+def transformez_cli(verbose: bool, quiet: bool) -> None:
     """Apply vertical datum transformations and generate shift grids."""
 
     setup_logging(name="transformez", quiet=quiet, verbose=verbose)
-    # logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     pass
 
 
@@ -119,16 +77,16 @@ def transformez_cli(verbose, quiet):
 )
 @click.option("--preview", is_flag=True, help="Preview the transformation output.")
 def transform_run(
-    input_file,
-    region,
-    increment,
-    input_datum,
-    output_datum,
-    out,
-    decay_pixels,
-    use_stations,
-    preview,
-):
+    input_file: Optional[str],
+    region: Optional[str],
+    increment: Optional[str],
+    input_datum: str,
+    output_datum: str,
+    out: Optional[str],
+    decay_pixels: int,
+    use_stations: bool,
+    preview: bool,
+) -> None:
     """Transform a raster's vertical datum or generate a standalone shift grid.
 
     If an INPUT_FILE is provided, that specific raster is transformed in place.
@@ -143,7 +101,7 @@ def transform_run(
         click.secho(f"Transforming raster: {input_file}", fg="cyan", bold=True)
         click.echo(f"   Shift: {input_datum} ➔ {output_datum}")
 
-        result = api.transform_raster(
+        raster_result = api.transform_raster(
             input_raster=input_file,
             datum_in=input_datum,
             datum_out=output_datum,
@@ -153,9 +111,11 @@ def transform_run(
             verbose=True,
         )
 
-        if result:
+        if raster_result:
             click.secho(
-                f"Successfully transformed raster: {result}", fg="green", bold=True
+                f"Successfully transformed raster: {raster_result}",
+                fg="green",
+                bold=True,
             )
         else:
             click.secho("Failed to transform raster.", fg="red")
@@ -169,10 +129,9 @@ def transform_run(
         )
         click.echo(f"   Shift: {input_datum} ➔ {output_datum} @ {increment}")
 
-        # Auto-generate an output name if one wasn't provided
         out_fn = out or f"shift_{input_datum}_to_{output_datum.replace(':', '_')}.tif"
 
-        result = api.generate_grid(
+        grid_result = api.generate_grid(
             region=region,
             increment=increment,
             datum_in=input_datum,
@@ -182,10 +141,10 @@ def transform_run(
             verbose=True,
         )
 
-        if preview:
-            api.plot_grid(result, region)
+        if preview and grid_result is not None:
+            api.plot_grid(grid_result, region)
 
-        if result is not None:
+        if grid_result is not None:
             click.secho(
                 f"Successfully generated shift grid: {out_fn}", fg="green", bold=True
             )
@@ -229,15 +188,15 @@ def transform_run(
     "--preview", is_flag=True, help="Show matplotlib preview instead of saving."
 )
 def transform_grid(
-    region,
-    increment,
-    input_datum,
-    output_datum,
-    out,
-    decay_pixels,
-    use_stations,
-    preview,
-):
+    region: str,
+    increment: str,
+    input_datum: str,
+    output_datum: str,
+    out: Optional[str],
+    decay_pixels: int,
+    use_stations: bool,
+    preview: bool,
+) -> None:
     """Generate a standalone vertical shift grid for a specified region."""
 
     click.secho(
@@ -247,7 +206,6 @@ def transform_grid(
     )
     click.echo(f"   Shift: {input_datum} ➔ {output_datum} @ {increment}")
 
-    # Auto-generate an output name if one wasn't provided
     out_fn = out or f"shift_{input_datum}_to_{output_datum.replace(':', '_')}.tif"
 
     result = api.generate_grid(
@@ -261,7 +219,7 @@ def transform_grid(
         verbose=True,
     )
 
-    if preview:
+    if preview and result is not None:
         api.plot_grid(result, region)
 
     if result is not None:
@@ -309,16 +267,16 @@ def transform_grid(
     help="Save the aligned vertical shift grid to disk alongside the output DEM.",
 )
 def transform_raster(
-    input_file,
-    input_datum,
-    output_datum,
-    in_units,
-    out_units,
-    out,
-    decay_pixels,
-    use_stations,
-    save_shift,
-):
+    input_file: str,
+    input_datum: str,
+    output_datum: str,
+    in_units: str,
+    out_units: str,
+    out: Optional[str],
+    decay_pixels: int,
+    use_stations: bool,
+    save_shift: bool,
+) -> None:
     """Apply a vertical datum shift to an existing DEM."""
 
     click.secho(f"Transforming raster: {input_file}", fg="cyan", bold=True)
@@ -346,65 +304,60 @@ def transform_raster(
 
 # --- LIST DATUMS, ETC. ---
 @transformez_cli.command("list", cls=FetchezMainCommand)
-def transform_list():
+def transform_list() -> None:
     """List all supported vertical datums, EPSG codes, and geoids."""
-    try:
-        from transformez.definitions import Datums
 
-        click.secho("\n🌊 Supported Tidal Surfaces:", fg="cyan", bold=True)
-        for key, v in Datums.SURFACES.items():
-            region_str = v.get("region", "global").upper()
-            click.echo(f"  {key:<12} : {v.get('name', key):<30} [{region_str}]")
+    from transformez.definitions import Datums
 
-        click.secho("\n🌐 Ellipsoidal / Frame Datums (EPSG):", fg="cyan", bold=True)
-        click.echo(f"  {'4979':<12} : WGS84 - World Geodetic System 1984")
-        click.echo(f"  {'6319':<12} : NAD83 - North American Datum 1983")
+    click.secho("\n🌊 Supported Tidal Surfaces:", fg="cyan", bold=True)
+    for key, v in Datums.SURFACES.items():
+        region_str = v.get("region", "global").upper()
+        click.echo(f"  {key:<12} : {v.get('name', key):<30} [{region_str}]")
 
-        click.secho("\n🏔️  Orthometric / Geoid-Based (EPSG):", fg="cyan", bold=True)
-        for epsg_key, v in Datums.CDN.items():
-            epsg_code = v.get("epsg", epsg_key)
-            geoid_str = v.get("default_geoid", "None")
-            click.echo(
-                f"  {str(epsg_code):<12} : {v.get('name', 'Unknown'):<30} (Default Geoid: {geoid_str})"
-            )
+    click.secho("\n🌐 Ellipsoidal / Frame Datums (EPSG):", fg="cyan", bold=True)
+    click.echo(f"  {'4979':<12} : WGS84 - World Geodetic System 1984")
+    click.echo(f"  {'6319':<12} : NAD83 - North American Datum 1983")
 
-        click.secho("\n🌍 Available Geoids:", fg="cyan", bold=True)
-        click.echo(f"  {', '.join(Datums.GEOIDS.keys())}")
-
-        # ---> HIERARCHY DOCUMENTATION <---
-        click.secho(
-            "\n🔄 Dynamic Fallback Hierarchy (Coastal/Tidal):", fg="magenta", bold=True
-        )
+    click.secho("\n🏔️  Orthometric / Geoid-Based (EPSG):", fg="cyan", bold=True)
+    for epsg_key, v in Datums.CDN.items():
+        epsg_code = v.get("epsg", epsg_key)
+        geoid_str = v.get("default_geoid", "None")
         click.echo(
-            "  1. NOAA VDatum       : High-res regional hydrodynamics (USA Base)."
-        )
-        click.echo(
-            "  2. FES2014 / Global  : Satellite altimetry proxy for offshore/international."
-        )
-        click.echo(
-            "  3. Tide Station RBF  : Live CO-OPS splines (Activated via --use-stations)."
-        )
-        click.echo(
-            "  4. Constant Offset   : Safety fallback for sparse coverage (< 3 stations)."
-        )
-        click.echo(
-            "  5. Inland Decay      : Vector-masked spatial decay for rivers/estuaries going inland."
+            f"  {str(epsg_code):<12} : {v.get('name', 'Unknown'):<30} (Default Geoid: {geoid_str})"
         )
 
-        click.secho("\n💡 Pro-Tip:", fg="yellow", bold=True, nl=False)
-        click.echo(
-            " Combine an EPSG and a specific Geoid using a colon (e.g., -O 5703:g2012b)\n"
-        )
+    click.secho("\n🌍 Available Geoids:", fg="cyan", bold=True)
+    click.echo(f"  {', '.join(Datums.GEOIDS.keys())}")
 
-    except ImportError:
-        click.secho("Error: Could not load Transformez datum definitions.", fg="red")
+    # ---> HIERARCHY DOCUMENTATION <---
+    click.secho(
+        "\n🔄 Dynamic Fallback Hierarchy (Coastal/Tidal):", fg="magenta", bold=True
+    )
+    click.echo("  1. NOAA VDatum       : High-res regional hydrodynamics (USA Base).")
+    click.echo(
+        "  2. FES2014 / Global  : Satellite altimetry proxy for offshore/international."
+    )
+    click.echo(
+        "  3. Tide Station RBF  : Live CO-OPS splines (Activated via --use-stations)."
+    )
+    click.echo(
+        "  4. Constant Offset   : Safety fallback for sparse coverage (< 3 stations)."
+    )
+    click.echo(
+        "  5. Inland Decay      : Vector-masked spatial decay for rivers/estuaries going inland."
+    )
+
+    click.secho("\n💡 Pro-Tip:", fg="yellow", bold=True, nl=False)
+    click.echo(
+        " Combine an EPSG and a specific Geoid using a colon (e.g., -O 5703:g2012b)\n"
+    )
 
 
 # --- HTDP CLI GROUP ---
 @transformez_cli.group(
     cls=FetchezMainGroup, name="htdp", fetchez_commands=["install", "run"]
 )
-def htdp_group():
+def htdp_group() -> None:
     """Manage and run NGS HTDP (Horizontal Time-Dependent Positioning)."""
 
     pass
@@ -416,7 +369,7 @@ def htdp_group():
     default="3.5.0",
     help="HTDP version to install (e.g., 3.3.0, 3.5.0, 3.6.0)",
 )
-def install_htdp(version):
+def install_htdp(version: str) -> None:
     """Downloads and compiles the HTDP executable from github."""
 
     from transformez.htdp import install_htdp_binary
@@ -426,26 +379,26 @@ def install_htdp(version):
 
 @htdp_group.command("run", cls=FetchezMainCommand)
 @click.option("--control", help="input control file, if omitted, run interactively")
-def run_htpd(control):
+def run_htpd(control: Optional[Any]) -> None:
     """Run HTDP from transformez"""
 
     from transformez.htdp import HTDP
 
-    HTDP.run_cmd(control)
+    HTDP().run_cmd(control)
 
 
 # --- VDATUM CLI GROUP ---
 @transformez_cli.group(
     cls=FetchezMainGroup, name="vdatum", fetchez_commands=["install"]
 )
-def vdatum_group():
+def vdatum_group() -> None:
     """Manage and run the NOAA VDatum Java engine."""
 
     pass
 
 
 @vdatum_group.command("install")
-def install_vdatum():
+def install_vdatum() -> None:
     """Downloads and extracts the local VDatum software."""
 
     from transformez.vdatum import install_vdatum_jar
@@ -469,8 +422,14 @@ def install_vdatum():
 @click.option("--out-unit", default="m", help="Output units (m, ft, us-ft)")
 @click.option("--region", default="4", help="VDatum region grid")
 def run_vdatum_cli(
-    input_file, output_file, in_datum, out_datum, in_unit, out_unit, region
-):
+    input_file: str,
+    output_file: str,
+    in_datum: str,
+    out_datum: str,
+    in_unit: str,
+    out_unit: str,
+    region: str,
+) -> None:
     """Process an XYZ text file through the local VDatum Java engine."""
 
     from transformez.vdatum import Vdatum
@@ -483,7 +442,7 @@ def run_vdatum_cli(
 
 
 @vdatum_group.command("list", cls=FetchezMainCommand)
-def vdatum_list():
+def vdatum_list() -> None:
     """List the supported vdatum grids"""
 
     from transformez.vdatum import Vdatum
@@ -511,7 +470,12 @@ def vdatum_list():
     is_flag=True,
     help="Fetch ALL available geoids, tidal models, and coastlines for this region.",
 )
-def transform_prefetch(region, input_datum, output_datum, fetch_all):
+def transform_prefetch(
+    region: str,
+    input_datum: Optional[str],
+    output_datum: Optional[str],
+    fetch_all: bool,
+) -> None:
     """Pre-download transformation grids and reference data for offline field use.
 
     Examples:\n

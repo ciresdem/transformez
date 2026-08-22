@@ -21,7 +21,7 @@ import logging
 import urllib.request
 import zipfile
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Optional, Any
 
 # from . import utils
 from .definitions import Datums  # Required for ID lookups
@@ -214,8 +214,11 @@ class HTDP:
         with open(control_fn, "w") as f:
             f.write(content)
 
-    def run_cmd(self, control_fn):
+    def run_cmd(self, control_fn: Optional[Any]):
         """Executes the binary."""
+
+        if not control_fn:
+            control_fn = 0
 
         try:
             with open(control_fn, "r") as stdin:
