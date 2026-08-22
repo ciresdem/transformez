@@ -492,7 +492,7 @@ class Datums:
 
         try:
             return int(datum_name)
-        except Exception:
+        except ValueError:
             pass
 
         s_name = str(datum_name).lower()
