@@ -14,6 +14,8 @@ This holds various utility functions.
 import os
 import subprocess
 import logging
+from typing import Tuple, Optional
+
 import numpy as np
 import rasterio
 import shutil
@@ -22,40 +24,79 @@ logger = logging.getLogger(__name__)
 
 
 def cmd_exists(x: str) -> bool:
+    """Check if a command exists in the system PATH.
+
+    Args:
+        x: Command name.
+
+    Returns:
+        True if command is executable, False otherwise.
+    """
+
     return any(
         os.access(os.path.join(path, x), os.X_OK)
         for path in os.environ["PATH"].split(os.pathsep)
     )
 
 
-def run_cmd(args):
-    """Standalone replacement for utils.run_cmd using subprocess."""
+def run_cmd(args: Tuple[str, ...]) -> Tuple[str, int]:
+    """Standalone replacement for utils.run_cmd using subprocess.
 
-    logger.debug(f"Running: {' '.join(args) if isinstance(args, list) else args}")
+    Args:
+        args: Command arguments.
+
+    Returns:
+        Tuple of (stdout, return_code).
+    """
+
+    logger.debug(f"Running: {' '.join(args)}")
     result = subprocess.run(
-        args,
+        list(args),
         shell=False if isinstance(args, list) else True,
         capture_output=True,
         text=True,
     )
-    return result.stdout, result.returncode
+    return (result.stdout, result.returncode)
 
 
-def cmd_check(cmd_str, cmd_vers_str):
-    """check system for availability of 'cmd_str'"""
+def cmd_check(cmd_str: str, cmd_vers_str: str) -> bytes:
+    """Check system for availability of command.
+
+    Args:
+        cmd_str: Command to check.
+        cmd_vers_str: Version check command.
+
+    Returns:
+        Version string or b"0" if not found.
+    """
 
     if cmd_exists(cmd_str):
-        cmd_vers, status = run_cmd(f"{cmd_vers_str}")
-        return cmd_vers.rstrip()
+        cmd_vers, status = run_cmd((cmd_vers_str,))
+        return (
+            cmd_vers.rstrip().encode()
+            if isinstance(cmd_vers, str)
+            else cmd_vers.rstrip()
+        )
     return b"0"
 
 
 class RasterQuery:
     """Raster query for point clouds.
+
     Pre-loads raster data and inverse transform to rapidly query (X, Y) arrays.
     """
 
-    def __init__(self, filename, default_nodata=0.0):
+    def __init__(self, filename: str, default_nodata: float = 0.0):
+        """Initialize RasterQuery.
+
+        Args:
+            filename: Path to raster file.
+            default_nodata: Value to use for nodata pixels.
+
+        Raises:
+            FileNotFoundError: If file doesn't exist.
+        """
+
         if not filename or not os.path.exists(filename):
             raise FileNotFoundError(f"Raster not found: {filename}")
 
@@ -73,8 +114,16 @@ class RasterQuery:
                 self.data[self.data == src.nodata] = self.default_nodata
             self.data = np.nan_to_num(self.data, nan=self.default_nodata)
 
-    def query(self, x, y):
-        """query the raster at given X, Y numpy arrays using pure vectorized affine math."""
+    def query(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Query the raster at given X, Y numpy arrays.
+
+        Argxs:
+            x: X coordinates.
+            y: Y coordinates.
+
+        Returns:
+            Array of values at queried locations.
+        """
 
         q_x = np.asarray(x).copy()
         q_y = np.asarray(y)
@@ -98,8 +147,18 @@ class RasterQuery:
         return results
 
 
-def export_cache(cache_dir=None, output_name="transformez_offline_cache"):
-    """Packs the local transformez cache into a ZIP file for offline use."""
+def export_cache(
+    cache_dir: Optional[str] = None, output_name: str = "transformez_offline_cache"
+) -> Optional[str]:
+    """Pack the local transformez cache into a ZIP file.
+
+    Args:
+        cache_dir: Path to cache directory. Defaults to ./transformez_cache.
+        output_name: Name for the output ZIP file.
+
+    Returns:
+        Path to created ZIP file, or None if failed.
+    """
 
     if cache_dir is None:
         cache_dir = os.path.join(os.getcwd(), "transformez_cache")
@@ -109,7 +168,6 @@ def export_cache(cache_dir=None, output_name="transformez_offline_cache"):
         logger.error("Run a transformation to populate the cache before exporting.")
         return None
 
-    # Determine output path
     out_path = os.path.abspath(output_name)
 
     logger.info("-" * 60)
@@ -119,10 +177,7 @@ def export_cache(cache_dir=None, output_name="transformez_offline_cache"):
     )
 
     try:
-        # shutil.make_archive(base_name, format, root_dir)
         zip_path = shutil.make_archive(out_path, "zip", cache_dir)
-
-        # Get human-readable file size
         size_mb = os.path.getsize(zip_path) / (1024 * 1024)
 
         logger.info(

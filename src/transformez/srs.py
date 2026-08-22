@@ -14,15 +14,15 @@ and a self generated vertical transformation grid.
 
 import os
 import logging
-from pyproj import CRS, Transformer
+from typing import Any, Dict, Optional, Tuple
 
+from pyproj import CRS, Transformer
 import numpy as np
 from rasterio.warp import reproject, Resampling
 from rasterio.transform import from_bounds
 
 from fetchez.spatial import Region
 from .definitions import Datums
-from .transform import VerticalTransform
 from .grid_engine import GridWriter
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,13 @@ class SRSParser:
     """
 
     def __init__(
-        self, src_srs, dst_srs, region=None, vert_grid=None, cache_dir=".", **kwargs
+        self,
+        src_srs: str,
+        dst_srs: str,
+        region: Optional[Any] = None,
+        vert_grid: Optional[Any] = None,
+        cache_dir: str = ".",
+        **kwargs: Any,
     ):
         self.src_srs_input = src_srs
         self.dst_srs_input = dst_srs
@@ -44,7 +50,7 @@ class SRSParser:
         self.manual_vert_grid = vert_grid
         self.cache_dir = cache_dir
 
-        self.tc = {
+        self.tc: Dict[str, Any] = {
             "src_crs": None,
             "dst_crs": None,
             "src_vert_epsg": None,
@@ -57,13 +63,15 @@ class SRSParser:
 
         self._parse_srs()
 
-    def _extract_geoid(self, srs_str):
+    def _extract_geoid(self, srs_str: str) -> Tuple[str, Optional[str]]:
+        """Extract geoid from SRS string."""
+
         parts = str(srs_str).split("+geoid:")
         return parts[0], (parts[1] if len(parts) > 1 else None)
 
-    def _extract_vertical(self, srs_str):
-        # parts = str(srs_str).split("+")
-        # return parts[0], (parts[1] if len(parts) > 1 else None)
+    def _extract_vertical(self, srs_str: str) -> Tuple[str, Optional[str | int]]:
+        """Extract vertical component from SRS string."""
+
         if "+" in srs_str:
             horz_str, vert_str = srs_str.rsplit("+", 1)
             try:
@@ -75,15 +83,19 @@ class SRSParser:
                 return srs_str, None
         return srs_str, None
 
-    def _get_epsg_int(self, crs):
+    def _get_epsg_int(self, crs: Optional[CRS]) -> Optional[int]:
         """Extract EPSG integer from a CRS."""
 
+        if crs is None:
+            return None
         try:
-            return int(crs.to_epsg())
+            return crs.to_epsg()
         except Exception:
             return None
 
-    def _parse_srs(self):
+    def _parse_srs(self) -> None:
+        """Parse source and destination SRS strings."""
+
         clean_src, self.tc["src_geoid"] = self._extract_geoid(self.src_srs_input)
         clean_dst, self.tc["dst_geoid"] = self._extract_geoid(self.dst_srs_input)
 
@@ -148,8 +160,8 @@ class SRSParser:
 
         self.tc["want_vertical"] = has_src_vert or has_dst_vert
 
-    def set_vertical_transform(self):
-        """Generates the vertical shift grid using VerticalTransform, aligned to src_crs."""
+    def set_vertical_transform(self) -> None:
+        """Generates the vertical shift grid using VerticalTransform."""
 
         if not self.region or not self.tc["want_vertical"]:
             return
@@ -181,6 +193,8 @@ class SRSParser:
             logger.info(
                 f"Generating vertical grid: {s_ident} -> {d_ident} : {self.tc['trans_fn']} :"
             )
+
+            from .transform import VerticalTransform
 
             # Determine Native WGS84 Region for Transformez
             src_is_projected = self.tc["src_crs"].is_projected
@@ -258,17 +272,20 @@ class SRSParser:
 
         self.manual_vert_grid = self.tc["trans_fn"]
 
-    def get_components(self):
-        """Returns the components:
-        - Transformer: Source -> Dest (Single Pass Horizontal)
-        - Grid Path (str) or None (Aligned to Source)
+    def get_components(self) -> Tuple[Transformer, Optional[str]]:
+        """Returns the components: Transformer and Grid Path.
+
+        Returns:
+            Tuple of (horizontal_transformer, vertical_grid_path).
         """
 
         if self.tc["want_vertical"] and not self.manual_vert_grid:
             self.set_vertical_transform()
 
         horz_transformer = Transformer.from_crs(
-            self.tc["src_crs"], self.tc["dst_crs"], always_xy=True
+            self.tc["src_crs"],
+            self.tc["dst_crs"],
+            always_xy=True,  # type: ignore[arg-type]
         )
 
         return horz_transformer, self.manual_vert_grid
