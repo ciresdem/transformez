@@ -360,8 +360,8 @@ class GridEngine:
         src_dem: str,
         shift_array: np.ndarray,
         dst_dem: str,
-        z_unit_in: Optional[str] = "m",
-        z_unit_out: Optional[str] = "m",
+        z_unit_in: str = "m",
+        z_unit_out: str = "m",
         shift_transform: Optional[Any] = None,
         shift_crs: Optional[str] = None,
     ) -> bool:
