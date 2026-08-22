@@ -42,6 +42,7 @@ full = ["transformez[preview]"]
 
 [dependency-groups]
 dev = [
+    "pre-commit",
     "mypy",
 ]
 test = [
@@ -104,9 +105,15 @@ disable_error_code = ["import-untyped"]
 module = [
     "matplotlib.*",
     "rasterio.*",
-    "scipy.*",
     "pyproj.*",
-    "fetchez.*",
 ]
 ignore_missing_imports = true
 follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "scipy.*",
+    "fetchez.*",
+]
+follow_untyped_imports = false
+ignore_missing_imports = true
