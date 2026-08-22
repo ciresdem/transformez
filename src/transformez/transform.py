@@ -635,7 +635,6 @@ class VerticalTransform:
                     hydro_shift = GridEngine.coastal_aware_composite(
                         vdatum_grid=hydro_shift,
                         global_grid=fes_navd88,
-                        region=self.region,
                         nx=self.nx,
                         ny=self.ny,
                         ocean_mask=ocean_mask,
