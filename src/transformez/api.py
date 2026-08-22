@@ -42,27 +42,47 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_datum(datum_arg: str) -> Tuple[Optional[int], Optional[str]]:
-    """Helper to parse compound datum strings (e.g. '5703:g2012b')."""
+    """Helper to parse compound datum strings (e.g. '5703:g2012b').
+
+    Args:
+        datum_arg: Datum string, possibly with geoid suffix.
+
+    Returns:
+        Tuple of (EPSG code, optional geoid name).
+    """
 
     if not datum_arg:
         return None, None
+
     s = str(datum_arg)
     if ":" in s:
         parts = s.split(":")
         geoid_part = parts[1]
         geoid = geoid_part.split("=")[1] if "geoid=" in geoid_part else geoid_part
+
         return Datums.get_vdatum_by_name(parts[0]), geoid
+
     return Datums.get_vdatum_by_name(s), None
 
 
-def plot_grid(grid_array, region, title="Vertical Shift Preview"):
-    """Plot the transformation grid using Matplotlib."""
+def plot_grid(
+    grid_array: np.ndarray, region: Region, title: str = "Vertical Shift Preview"
+) -> None:
+    """Plot the transformation grid using Matplotlib.
+
+    Requires the 'preview' extra to be installed.
+
+    Args:
+        grid_array: 2D array of vertical shift values.
+        region: Geographic region object or bounds list/string.
+        title: Plot title.
+    """
 
     try:
         import matplotlib.pyplot as plt
     except ImportError:
         logger.warning("Matplotlib is not installed. Cannot generate preview.")
-        return
+        return None
 
     if isinstance(region, Region):
         region_obj = region
@@ -79,7 +99,7 @@ def plot_grid(grid_array, region, title="Vertical Shift Preview"):
 
     if masked_data.count() == 0:
         logger.warning("Preview skipped: Grid contains no valid data.")
-        return
+        return None
 
     plt.figure(figsize=(10, 6))
     plot_region = [region_obj.xmin, region_obj.xmax, region_obj.ymin, region_obj.ymax]
@@ -128,15 +148,16 @@ def generate_grid(
         increment: Resolution (e.g., '3s' or 0.0008333).
         datum_in: Source datum (e.g., 'mllw', '5703').
         datum_out: Target datum (e.g., '4979', '6319').
-        epoch_in: Source epoch (e.g., '2010.0')
-        epoch_out: Target epoch (e.g., '2010.0')
-        decay_pixels: Set the pixel decay in case extrapolation is required.
+        epoch_in: Source epoch (e.g., '2010.0').
+        epoch_out: Target epoch (e.g., '2010.0').
+        decay_pixels: Pixels for inland extrapolation decay.
         out_fn: If provided, saves the grid to this file (.tif or .gtx).
         cache_dir: Path to store downloaded grids.
+        use_stations: Force RBF interpolation using live tide stations.
         verbose: Enable debug logging.
 
     Returns:
-        np.ndarray: The 2D vertical shift grid, or None if failed.
+        2D vertical shift grid, or None if failed.
     """
 
     if isinstance(region, Region):
@@ -144,8 +165,7 @@ def generate_grid(
     else:
         regions = parse_region(region)
         if not regions:
-            logger.error(f"Could not parse region: {region}")
-            return None
+            raise ValueError(f"Could not parse region: {region}")
         region_obj = regions[0]
 
     try:
@@ -154,14 +174,13 @@ def generate_grid(
         ny = int(region_obj.height / inc_val)
     except Exception as e:
         logger.error(f"Invalid increment '{increment}': {e}")
-        return None
+        raise
 
     epsg_in, geoid_in = _parse_datum(datum_in)
     epsg_out, geoid_out = _parse_datum(datum_out)
 
     if not epsg_in or not epsg_out:
-        logger.error(f"Invalid datum specified: {datum_in} -> {datum_out}")
-        return None
+        raise ValueError(f"Invalid datum specified: {datum_in} -> {datum_out}")
 
     vt = VerticalTransform(
         region=region_obj,
@@ -211,17 +230,17 @@ def transform_raster(
         input_raster: Path to the input DEM.
         datum_in: Source datum of the DEM.
         datum_out: Target datum for the output DEM.
-        output_raster: Path to save the transformed DEM. If None, auto-generates a name.
-        decay_pixels: Set the pixel decay in case extrapolation is required.
+        output_raster: Path to save the transformed DEM. Auto-named if None.
+        decay_pixels: Pixels for inland extrapolation decay.
         cache_dir: Path to store downloaded grids.
-        z_unit_in: Input DEM z units.
-        z_unit_out: Output DEM z units.
-        use_stations: Generate the shift grid from available tide stations,
-        safe_shift: Save the generated shift raster to disk.
+        z_unit_in: Input DEM z units ('auto', 'm', 'ft', 'us-ft').
+        z_unit_out: Output DEM z units ('auto', 'm', 'ft', 'us-ft').
+        use_stations: Force RBF interpolation using live tide stations.
+        save_shift: Save the generated shift raster to disk.
         verbose: Enable debug logging.
 
     Returns:
-        str: The path to the transformed output raster, or None if failed.
+        Path to the transformed output raster, or None if failed.
     """
 
     import rasterio
@@ -230,8 +249,7 @@ def transform_raster(
     from fetchez.spatial import Region
 
     if not os.path.exists(input_raster):
-        logger.error(f"Input raster not found: {input_raster}")
-        return None
+        raise ValueError(f"Input raster not found: {input_raster}")
 
     with rasterio.open(input_raster) as src:
         native_crs = src.crs
@@ -261,11 +279,6 @@ def transform_raster(
             native_bounds.top,
         )
         vt_nx, vt_ny = nx, ny
-
-    # with rasterio.open(input_raster) as src:
-    #     bounds = src.bounds
-    #     region_obj = Region(bounds.left, bounds.right, bounds.bottom, bounds.top)
-    #     nx, ny = src.width, src.height
 
     epsg_in, geoid_in = _parse_datum(datum_in)
     epsg_out, geoid_out = _parse_datum(datum_out)
@@ -358,9 +371,7 @@ def transform_raster(
             "Skipping --save-shift: Cannot export a dense native shift grid for memory-safe projected runs."
         )
 
-    if success:
-        return output_raster
-    return None
+    return output_raster if success else None
 
 
 def prefetch_region(
@@ -375,14 +386,14 @@ def prefetch_region(
 
     Args:
         region: Bounds as [W, E, S, N], a 'loc:' string, or a Region object.
-        datum_in: Source datum string (e.g. 'mllw') to limit fetching to a specific chain.
-        datum_out: Target datum string (e.g. '5703') to limit fetching to a specific chain.
-        fetch_all: If True, fetches ALL available geoids, tidal surfaces, and coastlines for the region.
+        datum_in: Source datum string to limit fetching to a specific chain.
+        datum_out: Target datum string to limit fetching to a specific chain.
+        fetch_all: If True, fetches ALL available geoids, tidal surfaces, coastlines.
         cache_dir: Directory where downloaded assets will be cached.
         verbose: Enable detailed logging.
 
     Returns:
-        bool: True if prefetching succeeded, False otherwise.
+        True if prefetching succeeded, False otherwise.
     """
 
     if isinstance(region, Region):
@@ -390,8 +401,7 @@ def prefetch_region(
     else:
         regions = parse_region(region)
         if not regions:
-            logger.error(f"Could not parse region: {region}")
-            return False
+            raise ValueError(f"Could not parse region: {region}")
         region_obj = regions[0]
 
     logger.info(f"Initiating offline prefetch for region: {region_obj}")
@@ -453,7 +463,11 @@ def prefetch_region(
             for proxy_name in ["lat", "msl", "mss"]:
                 logger.info(f"    - Fetching Global Proxy: {proxy_name}")
                 try:
-                    vt.fetch_grid("fes", datatype=proxy_name, query=proxy_name)
+                    vt.fetch_grid(
+                        "fes" if proxy_name != "mss" else "dtu",
+                        datatype=proxy_name,
+                        query=proxy_name,
+                    )
                 except Exception as e:
                     logger.warning(f"    - Skipping Global '{proxy_name}': {e}")
 
