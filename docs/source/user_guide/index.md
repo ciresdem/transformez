@@ -9,7 +9,6 @@ installation
 usage
 cli_usage
 methodology
-philosophy
 supported_datums
 validation
 ```
