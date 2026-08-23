@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.6.0] - 2026-08-23
+
+### Added
+
+- Comprehensive validation suite (`tests/validation/`) comparing Transformez output against NOAA CO-OPS tide gauges, the VDatum Java CLI, international FES2014 altimetry, and NGS HTDP tectonics.
+- Automated Markdown report generation for validation results.
+- Pytest configuration for CI/CD integration with `slow` and `accuracy` markers.
+- Detailed methodology documentation covering the Hub-and-Spoke model, sign conventions, coastal blending, and inland tidal decay.
+- `transformez prefetch` CLI command for offline field use.
+- Support for DTU25 MSS baseline alongside FES2014.
+
+### Changed
+
+- **Breaking:** Simplified `VerticalTransform._vertical_transform()` API — removed redundant `epsg_in`/`epsg_out` arguments; the method now uses instance state exclusively. All call sites in `api.py` and `srs.py` updated accordingly.
+- Improved error handling in `vdatum.py`: structured Java availability checks, graceful degradation when JAR is missing.
+- Refined `RasterQuery` in `utils.py` to handle longitude normalization (`[-180, 180]`) more robustly.
+- Consolidated `GridGen` class into `grid_engine.py`; `gridgen.py` is now a deprecated stub.
+- Standardized docstrings (Args/Returns format) across all public methods.
+- Expanded type hint coverage to 100% of public APIs across all modules.
+- Updated documentation index to highlight the Continuous DEMs Project.
+- Dynamic blur distance in `GridEngine.fill_nans()` — blur sigma now scales with `decay_pixels` instead of using a hardcoded value.
+
+### Fixed
+
+- Fixed file extension matching in `hooks.py` (`.las` → `".laz", ".las"`).
+- Fixed circular import risk in `srs.py` by deferring `VerticalTransform` import to method level.
+- Fixed None-safety crashes in `transform.py` when EPSG codes or `SURFACES` entries are missing.
+- Removed duplicate `fetch_grid_()` method from `transform.py`.
+- Removed deprecated `_get_global_chain_depreciated()` method.
+- Pruned all commented-out dead code across the codebase.
+- Fixed `vdatum.py` `run_cmd` calls that previously suppressed stderr.
+- Fixed HTDP `run_cmd` error handling to catch `CalledProcessError` specifically.
+
+### Removed
+
+- Duplicate `GridGen` class definition (top-level in `grid_engine.py`).
+- Dead/deprecated code blocks in `grid_engine.py`, `transform.py`, and `htdp.py`.
+
 ## [0.4.4] - 2026-06-25
 
 ### Added
