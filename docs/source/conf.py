@@ -99,7 +99,9 @@ html_theme_options = {
 # html_logo = "_static/logo.png"
 html_title = "Transformez Documentation"
 # #html_logo = "_static/fetchez_logo_micro.svg"
-html_logo = "_static/continuous_dems_logo_mini.svg"
+# html_logo = "_static/continuous_dems_logo_mini.svg"
+html_logo = "_static/transformez-logo.svg"
+html_favicon = "_static/transformez-logo.ico"
 
 # -- Autodoc Options ---------------------------------------------------------
 # Ensure methods are documented
