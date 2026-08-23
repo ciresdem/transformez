@@ -12,6 +12,8 @@ The transformez dtu fetchez module that uses vsicurl to fetch subsets.
 """
 
 import logging
+from typing import Any
+
 from .base import TransformezModule
 
 logger = logging.getLogger(__name__)
@@ -22,14 +24,14 @@ class DTU(TransformezModule):
 
     name = "dtu"
 
-    def __init__(self, datatype="mss25", **kwargs):
+    def __init__(self, datatype: str = "mss25", **kwargs: Any):
         super().__init__(name="dtu", **kwargs)
         self.datatype = datatype
         self.dataset_url = "https://api.figshare.com/v2/file/download/55747802"
 
     def run(self):
         if not self.wgs_region:
-            return
+            return self
 
         w, e, s, n = self.wgs_region
         out_name = f"dtu25_mss_{w}_{s}_{e}_{n}.tif"

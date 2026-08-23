@@ -21,25 +21,22 @@ import logging
 import urllib.request
 import zipfile
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Optional, Any
 
-# from . import utils
 from .definitions import Datums  # Required for ID lookups
 
 logger = logging.getLogger(__name__)
 
-# ae = ".exe" if sys.platform == "win32" else ""
-# # Validating HTDP existence
-# htdp_cmd = (
-#     "echo 0 | htdp 2>&1"
-#     if sys.platform == "win32"
-#     else "echo 0 | htdp 2>&1 | grep SOFTWARE | awk '{print $3}'"
-# )
-# HAS_HTDP = utils.cmd_check(f"htdp{ae}", htdp_cmd)
 
+def resolve_htdp_path(version: str = "3.5.0") -> Optional[str]:
+    """Find the HTDP executable, prioritizing the local cache over system PATH.
 
-def resolve_htdp_path(version="3.5.0"):
-    """Finds the HTDP executable, prioritizing the local cache over system PATH."""
+    Args:
+        version: HTDP version string (e.g., '3.5.0').
+
+    Returns:
+        Path to HTDP binary, or None if not found.
+    """
 
     clean_version = version.replace("v", "")
     ae = ".exe" if sys.platform == "win32" else ""
@@ -51,9 +48,6 @@ def resolve_htdp_path(version="3.5.0"):
     if os.path.exists(cache_bin):
         return cache_bin
 
-    # Check system PATH
-    import shutil
-
     if shutil.which(f"htdp{ae}"):
         return f"htdp{ae}"
 
@@ -64,23 +58,46 @@ class HTDP:
     """Wrapper for the NGS HTDP software."""
 
     def __init__(
-        self, htdp_bin: str = "htdp", version: str = "3.5.0", verbose: bool = True
+        self,
+        htdp_bin: Optional[str] = "htdp",
+        version: str = "3.5.0",
+        verbose: bool = True,
     ):
-        self.htdp_bin = htdp_bin
         self.version = version
         self.verbose = verbose
-
-        self.htdp_bin = htdp_bin or resolve_htdp_path(self.version)
-        self.has_htdp = self.htdp_bin is not None
+        self.htdp_bin: Optional[str] = htdp_bin or resolve_htdp_path(self.version)
+        self.has_htdp: bool = self.htdp_bin is not None
 
         if not self.has_htdp:
             logger.error(
-                f"HTDP {self.version} is not installed or not in PATH. Run 'transformez htdp install --version {self.version}"
+                f"HTDP {self.version} is not installed or not in PATH. "
+                f"Run 'transformez htdp install --version {self.version}'"
             )
 
-    def run_grid(self, region, nx, ny, epsg_in, epsg_out, epoch_in, epoch_out):
+    def run_grid(
+        self,
+        region: Any,
+        nx: int,
+        ny: int,
+        epsg_in: int,
+        epsg_out: int,
+        epoch_in: str,
+        epoch_out: str,
+    ) -> np.ndarray:
         """Main entry point called by transform.py.
         Generates a shift grid between two frames.
+
+        Args:
+            region: Geographic region object with xmin/xmax/ymin/ymax.
+            nx: Number of pixels along x-axis.
+            ny: Number of pixels along y-axis.
+            epsg_in: Source EPSG code.
+            epsg_out: Target EPSG code.
+            epoch_in: Source epoch string.
+            epoch_out: Target epoch string.
+
+        Returns:
+            2D shift grid (ny, nx). Zeros if HTDP unavailable.
         """
 
         if not self.has_htdp:
@@ -89,13 +106,12 @@ class HTDP:
 
         # Look up HTDP numeric IDs (e.g., NAD83=1, WGS84=10)
         # transform.py passes ints (EPSGs), we need HTDP internal IDs
-        def get_id(epsg):
+        def get_id(epsg: int) -> int:
             if epsg in Datums.HTDP:
                 return Datums.HTDP[epsg]["htdp_id"]
             # Fallback for common codes if not in dictionary
             if epsg == 6319:
                 return 1  # NAD83(2011)
-
             if epsg == 4979:
                 return 10  # WGS84(G1762)
             raise ValueError(f"EPSG {epsg} not defined in HTDP dictionary.")
@@ -122,13 +138,10 @@ class HTDP:
                 for y_idx, lat in enumerate(lats):
                     for x_idx, lon in enumerate(lons):
                         # "Lat Lon Height TextID"
-                        # We use PNT_x_y tags to map output back to grid
-                        # htdp_lon = lon * -1.0
+                        # Convert to HTDP's west-positive longitude convention
                         if lon < 0:
-                            # Western Hemisphere (e.g., -124.5 -> 124.5 W)
                             htdp_lon = abs(lon)
                         else:
-                            # Eastern Hemisphere (e.g., 139.0 E -> 221.0 W)
                             htdp_lon = 360.0 - lon
                         f.write(
                             f'{lat:.9f} {htdp_lon:.9f} 0.000 "PNT_{x_idx}_{y_idx}"\n'
@@ -151,7 +164,15 @@ class HTDP:
             return grid
 
     def _read_grid(self, filename: str, shape: Tuple[int, int]) -> np.ndarray:
-        """Parses HTDP output, mapping PNT_x_y tags to grid indices."""
+        """Parse HTDP output, mapping PNT_x_y tags to grid indices.
+
+        Args:
+            filename: Path to HTDP output file.
+            shape: Target grid shape (ny, nx).
+
+        Returns:
+            2D numpy array of height values.
+        """
 
         grid = np.zeros(shape)
         with open(filename, "r") as f:
@@ -175,27 +196,45 @@ class HTDP:
                     if 0 <= y < shape[0] and 0 <= x < shape[1]:
                         grid[y, x] = height
 
-                except Exception:
+                except (ValueError, IndexError, StopIteration):
                     continue
 
         return grid
 
     def _write_control(
-        self, control_fn, out_fn, in_fn, id_in, epoch_in, id_out, epoch_out
+        self,
+        control_fn: str,
+        out_fn: str,
+        in_fn: str,
+        id_in: int,
+        epoch_in: str,
+        id_out: int,
+        epoch_out: str,
     ):
-        """Writes the batch control file."""
-        # 4 = Transform Positions
-        # 2 = Input file
-        # ID_IN
-        # ID_OUT
-        # 2 = Epoch Format (Decimal Years)
-        # EPOCH_IN
-        # 2 = Epoch Format
-        # EPOCH_OUT
-        # 3 = Height (Ellipsoid Height)
-        # IN_FILENAME
-        # 0 = No Velocities
-        # 0 = Standard Output
+        """Write the batch control file.
+
+        4 = Transform Positions
+        2 = Input file
+        ID_IN
+        ID_OUT
+        2 = Epoch Format (Decimal Years)
+        EPOCH_IN
+        2 = Epoch Format
+        EPOCH_OUT
+        3 = Height (Ellipsoid Height)
+        IN_FILENAME
+        0 = No Velocities
+        0 = Standard Output
+
+        Args:
+            control_fn: Path for control file output.
+            out_fn: Path for HTDP output.
+            in_fn: Path to input coordinates file.
+            id_in: HTDP source frame ID.
+            epoch_in: Source epoch (decimal years).
+            id_out: HTDP target frame ID.
+            epoch_out: Target epoch (decimal years).
+        """
 
         content = (
             f"4\n"
@@ -214,8 +253,22 @@ class HTDP:
         with open(control_fn, "w") as f:
             f.write(content)
 
-    def run_cmd(self, control_fn):
-        """Executes the binary."""
+    def run_cmd(self, control_fn: Optional[Any] = None) -> bool:
+        """Execute the HTDP binary.
+
+        Args:
+            control_fn: Path to control file. If None, uses interactive mode.
+
+        Returns:
+            True if execution succeeded, False otherwise.
+        """
+
+        if not self.htdp_bin:
+            logger.error("No HTDP binary available.")
+            return False
+
+        if control_fn is None:
+            control_fn = 0
 
         try:
             with open(control_fn, "r") as stdin:
@@ -226,15 +279,23 @@ class HTDP:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
                 )
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.error(f"HTDP runtime error: {e.stderr.decode() if e.stderr else e}")
+            return False
         except Exception as e:
-            logger.error(f"HTDP Runtime Error: {e}")
+            logger.error(f"HTDP runtime error: {e}")
+            return False
 
 
-def download_htdp(target_dir=None):
-    """Downloads HTDP from NOAA NGS.
+def download_htdp(target_dir: Optional[str] = None) -> None:
+    """Download HTDP from NOAA NGS.
 
     On Windows, downloads the pre-compiled executable.
     On Linux/Mac, downloads the source and provides compilation instructions.
+
+    Args:
+        target_dir: Directory to download into. Defaults to cwd.
     """
 
     if target_dir is None:
@@ -285,8 +346,12 @@ def download_htdp(target_dir=None):
             logger.error(f"Failed to download or extract HTDP source: {e}")
 
 
-def install_htdp_binary(version="3.5.0"):
-    """Downloads and automatically compiles a specific HTDP version from GitHub."""
+def install_htdp_binary(version: str = "3.5.0") -> None:
+    """Download and automatically compile a specific HTDP version from GitHub.
+
+    Args:
+        version: HTDP version string (e.g., '3.5.0').
+    """
 
     cache_dir = os.path.join(os.getcwd(), "transformez_cache", "bin")
     os.makedirs(cache_dir, exist_ok=True)
@@ -334,48 +399,12 @@ def install_htdp_binary(version="3.5.0"):
 
         os.remove(zip_path)
 
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Compilation failed: {e.stderr.decode() if e.stderr else e}")
+    except FileNotFoundError:
+        logger.error(
+            "'gfortran' not found! Install it (e.g., 'sudo apt install gfortran' "
+            "or 'brew install gcc')."
+        )
     except Exception as e:
         logger.error(f"Failed to install HTDP {clean_version}: {e}")
-
-
-def _install_htdp_binary():
-    """Downloads and automatically compiles HTDP."""
-
-    cache_dir = os.path.join(os.getcwd(), "transformez_cache", "bin")
-    os.makedirs(cache_dir, exist_ok=True)
-
-    if sys.platform == "win32":
-        logger.info("Downloading Windows HTDP executable...")
-        url = "https://geodesy.noaa.gov/TOOLS/Htdp/htdp.exe"
-        exe_path = os.path.join(cache_dir, "htdp.exe")
-        urllib.request.urlretrieve(url, exe_path)
-        logger.info(f"HTDP installed successfully to: {exe_path}")
-
-    else:
-        logger.info("Downloading Unix HTDP source code...")
-        url = "https://geodesy.noaa.gov/TOOLS/Htdp/HTDP-download.zip"
-        zip_path = os.path.join(cache_dir, "htdp.zip")
-
-        urllib.request.urlretrieve(url, zip_path)
-
-        with zipfile.ZipFile(zip_path, "r") as z:
-            z.extractall(cache_dir)
-        os.remove(zip_path)
-
-        fortran_file = os.path.join(cache_dir, "htdp.f")
-        out_bin = os.path.join(cache_dir, "htdp")
-
-        logger.info("Compiling HTDP with gfortran...")
-        try:
-            subprocess.run(
-                ["gfortran", "-o", out_bin, fortran_file],
-                check=True,
-                capture_output=True,
-            )
-            logger.info(f"HTDP compiled successfully to: {out_bin}")
-        except FileNotFoundError:
-            logger.error(
-                "'gfortran' not found! Please install gfortran (e.g., 'sudo apt install gfortran' or 'brew install gcc')."
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Compilation failed: {e.stderr.decode()}")

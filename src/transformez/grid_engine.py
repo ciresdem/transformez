@@ -15,12 +15,16 @@ floating-point nodata leaks and spline ringing at data boundaries.
 
 import os
 import logging
+from typing import Optional, List, Any
+
 import numpy as np
 import rasterio
 from rasterio.warp import reproject, Resampling
 from rasterio.transform import from_bounds
-from scipy import ndimage
+from scipy.ndimage import distance_transform_edt, gaussian_filter
 from scipy.interpolate import Rbf
+
+from fetchez.spatial import Region, parse_region
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -33,7 +37,11 @@ class GridCorruptionError(Exception):
     pass
 
 
-def plot_grid(grid_array, region, title="Vertical Shift Preview"):
+def plot_grid(
+    grid_array: np.ndarray,
+    region: Region | str,
+    title: str = "Vertical Shift Preview",
+) -> None:
     """Plot the transformation grid using Matplotlib."""
 
     try:
@@ -50,10 +58,17 @@ def plot_grid(grid_array, region, title="Vertical Shift Preview"):
         logger.warning("Preview skipped: Grid contains no valid data.")
         return
 
-    plt.figure(figsize=(10, 6))
-    plot_region = [region.xmin, region.xmax, region.ymin, region.ymax]
+    if isinstance(region, Region):
+        region_obj = region.copy()
+    else:
+        regions = parse_region(region)
+        if not regions:
+            raise ValueError(f"Could not parse region: {region}")
+        region_obj = regions[0]
 
-    # im = plt.imshow(masked_data, extent=plot_region, cmap="RdBu_r", origin="upper")
+    plt.figure(figsize=(10, 6))
+    plot_region = [region_obj.xmin, region_obj.xmax, region_obj.ymin, region_obj.ymax]
+
     im = plt.imshow(masked_data, extent=plot_region, cmap="viridis", origin="upper")
     cbar = plt.colorbar(im)
     cbar.set_label("Vertical Shift (meters)")
@@ -79,15 +94,37 @@ def plot_grid(grid_array, region, title="Vertical Shift Preview"):
 
 class GridEngine:
     @staticmethod
-    def load_and_interpolate(source_files, target_region, nx, ny, decay_pixels=100):
-        """Composites grids using GDAL Warper."""
+    def load_and_interpolate(
+        source_files: List[str],
+        target_region: Region | str,
+        nx: int,
+        ny: int,
+        decay_pixels: int = 100,
+    ):
+        """Composites grids using GDAL/rasterio Warper.
 
-        xmin, xmax, ymin, ymax = (
-            target_region.xmin,
-            target_region.xmax,
-            target_region.ymin,
-            target_region.ymax,
-        )
+        Args:
+            source_files: List of input grid files (NetCDF, GTX, GeoTIFF).
+            target_region: Target geographic region object.
+            nx: Number of pixels along x-axis.
+            ny: Number of pixels along y-axis.
+            decay_pixels: Pixels for inland extrapolation decay.
+
+        Returns:
+            2D array with composited grid data (NaN for no data).
+        """
+
+        if isinstance(target_region, str):
+            regions = parse_region(target_region)
+            if not regions:
+                raise ValueError(f"Could not parse region: {target_region}")
+            target_region = regions[0]
+
+        if isinstance(target_region, Region):
+            xmin, xmax, ymin, ymax = target_region
+        else:
+            raise ValueError(f"Could not parse region: {target_region}")
+
         dst_transform = from_bounds(xmin, ymin, xmax, ymax, nx, ny)
         dst_crs = "EPSG:4326"
 
@@ -99,7 +136,6 @@ class GridEngine:
 
             try:
                 with rasterio.open(fn) as src:
-                    # logger.info(f"{fn}: {src}")
                     src_data = src.read(1).astype(np.float32)
                     src_nodata = src.nodata
 
@@ -155,40 +191,24 @@ class GridEngine:
                 logger.exception(f"Failed to reproject {fn}: {e}")
                 raise
 
-            # except Exception as e:
-            #     error_msg = str(e)
-
-            #     if "-101" in error_msg or "HDF error" in error_msg:
-            #         logger.error(f" CRITICAL: Corrupted NetCDF chunk detected in {fn}!")
-
-            #         # Extract the real file path from the GDAL netcdf string
-            #         real_path = fn.split(":")[1] if fn.startswith("netcdf:") else fn
-
-            #         if os.path.exists(real_path):
-            #             logger.warning(f"Auto-deleting corrupted cache file: {real_path}")
-            #             os.remove(real_path)
-
-            #         raise RuntimeError(
-            #             f"Transformation aborted to prevent math corruption. "
-            #             f"The corrupted file has been deleted. Please re-run your command to fetch a fresh copy!"
-            #         )
-
-            #     # For all other normal errors, log and continue as usual
-            #     logger.exception(f"Failed to reproject {fn}: {e}")
-            #     continue
-            # except Exception as e:
-            #     logger.exception(f"Failed to reproject {fn}: {e}")
-            #     continue
-
-        # Fill inland areas (decaying to 0) before we clear the remaining NaNs
-        # mosaic = GridEngine.fill_nans(mosaic, decay_pixels=decay_pixels)
-        # mosaic[np.isnan(mosaic)] = 0.0
-
         return mosaic
 
     @staticmethod
-    def smart_blend(in_grid, background_grid, blend_pixels=50):
-        """Smoothly blends the grid into a background grid."""
+    def smart_blend(
+        in_grid: np.ndarray,
+        background_grid: np.ndarray,
+        blend_pixels: int = 50,
+    ) -> np.ndarray:
+        """Smoothly blends the grid into a background grid.
+
+        Args:
+            in_grid: Primary grid (may contain NaNs).
+            background_grid: Background grid to blend into.
+            blend_pixels: Width of the blending zone in pixels.
+
+        Returns:
+            Blended grid with smooth transition.
+        """
 
         mask = np.isnan(in_grid)
 
@@ -196,16 +216,16 @@ class GridEngine:
             return in_grid
 
         if mask.all():
-            return background_grid
+            return background_grid.copy()
 
-        dist = ndimage.distance_transform_edt(mask)
+        dist: Any = distance_transform_edt(mask)
         alpha = np.clip(dist / blend_pixels, 0.0, 1.0)
 
         # --- Hermite Interpolation ---
         # This converts the linear gradient into a smooth S-curve
         alpha = alpha * alpha * (3.0 - 2.0 * alpha)
 
-        nearest_indices = ndimage.distance_transform_edt(
+        nearest_indices = distance_transform_edt(
             mask, return_distances=False, return_indices=True
         )
         extended_vdatum = in_grid.copy()
@@ -217,18 +237,29 @@ class GridEngine:
 
     @staticmethod
     def coastal_aware_composite(
-        vdatum_grid,
-        global_grid,
-        region,
-        nx,
-        ny,
-        ocean_mask=None,
-        decay_pixels=100,
-        buffer_pixels=10,
-        blend_pixels=50,
-    ):
-        """Handles inland decay vs. offshore blending, while
-        filtering out low-resolution global artifacts.
+        vdatum_grid: np.ndarray,
+        global_grid: np.ndarray,
+        nx: int,
+        ny: int,
+        ocean_mask: Optional[np.ndarray] = None,
+        decay_pixels: int = 100,
+        buffer_pixels: int = 10,
+        blend_pixels: int = 50,
+    ) -> np.ndarray:
+        """Handles inland decay vs. offshore blending.
+
+        Args:
+            vdatum_grid: High-resolution coastal tidal shift grid.
+            global_grid: Lower-resolution global background grid.
+            nx: Number of pixels along x-axis.
+            ny: Number of pixels along y-axis.
+            ocean_mask: Boolean mask where True = ocean.
+            decay_pixels: Pixels for inland extrapolation decay.
+            buffer_pixels: Buffer zone before inland decay begins.
+            blend_pixels: Width of offshore blending zone.
+
+        Returns:
+            Composite grid with appropriate treatment for land/ocean/inland.
         """
 
         final_grid = vdatum_grid.copy()
@@ -260,9 +291,25 @@ class GridEngine:
         return final_grid
 
     @staticmethod
-    def fill_nans(data, decay_pixels=100, buffer_pixels=10, ocean_mask=None):
+    def fill_nans(
+        data: np.ndarray,
+        decay_pixels: int = 100,
+        buffer_pixels: int = 10,
+        ocean_mask: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
         """Fills NaNs by extrapolating nearest valid coastal values.
-        Melted Voronoi ridges ensure C1 continuity deep inland.
+
+        Uses dynamic blur scaling to ensure smooth transitions from raw
+        extrapolation near the coast to smoothed values deep inland.
+
+        Args:
+            data: Input grid with NaN gaps to fill.
+            decay_pixels: Distance over which values decay to zero (0 for infinite).
+            buffer_pixels: Zone near coast where raw data is preserved.
+            ocean_mask: Boolean mask where True = ocean (excluded from inland decay).
+
+        Returns:
+            Filled grid with extrapolated inland values.
         """
 
         out_data = data.copy()
@@ -274,15 +321,20 @@ class GridEngine:
         if not mask.any() or mask.all():
             return out_data
 
-        dist, indices = ndimage.distance_transform_edt(
+        dist, indices = distance_transform_edt(
             mask, return_distances=True, return_indices=True
         )
 
         raw_extrapolation = out_data[tuple(indices)]
-        # Blur the "Voronoi Ridges" deep inland
-        blurred_extrapolation = ndimage.gaussian_filter(raw_extrapolation, sigma=25)
-        # Crossfade! Beach = Raw Data, Inland = Blurred Data
-        blur_blend = np.clip(dist / 50.0, 0, 1)
+
+        # Dynamic blur sigma: scale with decay_pixels to maintain proportion
+        # This ensures the smoothing transition zone aligns with the decay zone
+        blur_sigma = max(10, decay_pixels / 5)
+        blurred_extrapolation = gaussian_filter(raw_extrapolation, sigma=blur_sigma)
+
+        # Crossfade: raw near coast, blurred deep inland
+        # Use decay_pixels as the reference distance for consistency
+        blur_blend = np.clip(dist / max(decay_pixels, 1), 0, 1)
         coast_values = (raw_extrapolation * (1.0 - blur_blend)) + (
             blurred_extrapolation * blur_blend
         )
@@ -290,8 +342,6 @@ class GridEngine:
         if decay_pixels and decay_pixels > 0:
             # --- Inland Decay ---
             effective_dist = np.clip(dist - buffer_pixels, 0, None)
-
-            # Calculate the linear decay (1.0 down to 0.0)
             linear_decay = np.clip((decay_pixels - effective_dist) / decay_pixels, 0, 1)
 
             # Apply Smoothstep (Hermite) easing to create the S-curve!
@@ -300,25 +350,37 @@ class GridEngine:
             out_data[mask] = coast_values[mask] * decay_factor[mask]
 
         else:
-            # --- Infinite Extrapolation (Default) ---
+            # --- Infinite Extrapolation (no decay) ---
             out_data[mask] = coast_values[mask]
 
         return out_data
 
     @staticmethod
     def apply_vertical_shift(
-        src_dem,
-        shift_array,
-        dst_dem,
-        z_unit_in="m",
-        z_unit_out="m",
-        shift_transform=None,
-        shift_crs=None,
-    ):
-        """Apply a vertical shift array to a source DEM using memory-safe windowed I/O."""
+        src_dem: str,
+        shift_array: np.ndarray,
+        dst_dem: str,
+        z_unit_in: str = "m",
+        z_unit_out: str = "m",
+        shift_transform: Optional[Any] = None,
+        shift_crs: Optional[str] = None,
+    ) -> bool:
+        """Apply a vertical shift array to a source DEM using memory-safe windowed I/O.
+
+        Args:
+            src_dem: Path to input DEM.
+            shift_array: 2D shift grid (same projection as src_dem unless shift_transform given).
+            dst_dem: Path to output transformed DEM.
+            z_unit_in: Input DEM Z units ('m', 'ft', etc.).
+            z_unit_out: Output DEM Z units.
+            shift_transform: Transform matrix for shift_array (if different from src_dem).
+            shift_crs: CRS of shift_array (if different from src_dem).
+
+        Returns:
+            True if successful, False otherwise.
+        """
 
         from .definitions import Datums
-        from rasterio.warp import reproject, Resampling
 
         factor_in = Datums.get_unit_factor(z_unit_in)
         factor_out = Datums.get_unit_factor(z_unit_out)
@@ -368,10 +430,6 @@ class GridEngine:
                             local_shift = shift_array[
                                 row_start:row_end, col_start:col_end
                             ]
-                            # local_shift = shift_array[
-                            #     window.row_off : window.row_off + window.height,
-                            #     window.col_off : window.col_off + window.width,
-                            # ]
 
                         if src.nodata is None or np.isnan(src.nodata):
                             valid_mask = (~np.isnan(data_chunk)) & (
@@ -393,7 +451,7 @@ class GridEngine:
 
                         dst.write(data_chunk, 1, window=window)
 
-            logger.info(f"Successfully wrote memory-safe transformed DEM to: {dst_dem}")
+            logger.info(f"Successfully wrote transformed DEM to: {dst_dem}")
             return True
 
         except Exception as e:
@@ -403,8 +461,21 @@ class GridEngine:
 
 class GridWriter:
     @staticmethod
-    def write(filename, data, region):
-        """Write a vertical shift grid using Rasterio."""
+    def write(
+        filename: str,
+        data: np.ndarray,
+        region: Region | str,
+    ) -> str:
+        """Write a vertical shift grid using Rasterio.
+
+        Args:
+            filename: Output filepath.
+            data: 2D array to write.
+            region: Geographic region object with xmin, xmax, ymin, ymax.
+
+        Returns:
+            Path to written file (always .tif extension).
+        """
 
         dirname = os.path.dirname(filename)
         if dirname and not os.path.exists(dirname):
@@ -414,7 +485,16 @@ class GridWriter:
             filename = os.path.splitext(filename)[0] + ".tif"
 
         rows, cols = data.shape
-        xmin, xmax, ymin, ymax = region.xmin, region.xmax, region.ymin, region.ymax
+        if isinstance(region, str):
+            regions = parse_region(region)
+            if not regions:
+                raise ValueError(f"Could not parse region: {region}")
+            region = regions[0]
+
+        if isinstance(region, Region):
+            xmin, xmax, ymin, ymax = region
+        else:
+            raise ValueError(f"Could not parse region: {region}")
 
         res_x = (xmax - xmin) / cols
         res_y = (ymax - ymin) / rows
@@ -444,7 +524,11 @@ def calculate_psmsl_msl(csv_path: str) -> float:
     """Reads a PSMSL time-series CSV generated by fetchez, filters out
     missing data flags (-99999), and calculates the all-time Mean Sea Level.
 
-    Returns the MSL value in METERS.
+    Args:
+        csv_path: Path to PSMSL CSV file.
+
+    Returns:
+        MSL value in meters (np.nan if no valid data).
     """
 
     import csv
@@ -461,8 +545,6 @@ def calculate_psmsl_msl(csv_path: str) -> float:
                 try:
                     # Column 1 is the MSL value in millimeters
                     msl_mm = float(row[1].strip())
-
-                    # -99999 is the PSMSL nodata flag
                     if msl_mm != -99999.0:
                         valid_measurements.append(msl_mm)
                 except ValueError:
@@ -489,16 +571,44 @@ def calculate_psmsl_msl(csv_path: str) -> float:
 class GridGen:
     @staticmethod
     def from_stations(
-        region, nx, ny, datum_in, datum_out, shapefiles=None, baseline_grid=None
-    ):
+        region: Region | str,
+        nx: int,
+        ny: int,
+        datum_in: str,
+        datum_out: str,
+        shapefiles: Optional[List[str]] = None,
+        baseline_grid: Optional[np.ndarray] = None,
+    ) -> Optional[np.ndarray]:
         """Dynamically generates a tidal shift grid using live tide stations.
+
         If a station lacks the target datum, it falls back to MSL and uses the
         baseline_grid (FES) to bridge the gap to the geodetic frame.
+
+        Args:
+            region: Geographic region object.
+            nx: Number of pixels along x-axis.
+            ny: Number of pixels along y-axis.
+            datum_in: Source datum name (lowercase).
+            datum_out: Target datum name (lowercase).
+            shapefiles: Optional list of coastline shapefile paths.
+            baseline_grid: Optional baseline grid (FES offset) for floating stations.
+
+        Returns:
+            Interpolated shift grid (2D array), or None if generation failed.
         """
 
         import json
         from fetchez.modules.tides import Tides
-        import fetchez
+        from fetchez.core import run_fetchez
+
+        if isinstance(region, str):
+            regions = parse_region(region)
+            if not regions:
+                raise ValueError(f"Could not parse region: {region}")
+            region = regions[0]
+
+        if not isinstance(region, Region):
+            raise ValueError(f"Could not parse region: {region}")
 
         tides_fetcher = Tides(src_region=region.to_list(), mode="search")
         tides_fetcher.run()
@@ -507,7 +617,7 @@ class GridGen:
             logger.error("Failed to fetch tide stations GeoJSON.")
             return None
 
-        fetchez.core.run_fetchez([tides_fetcher], threads=1)
+        _ = run_fetchez([tides_fetcher], threads=1)
 
         geojson_path = tides_fetcher.results[0]["dst_fn"]
         if not os.path.exists(geojson_path):
@@ -522,7 +632,10 @@ class GridGen:
             logger.error("No valid tide stations found in this region.")
             return None
 
-        x, y, z = [], [], []
+        x: List[float] = []
+        y: List[float] = []
+        z: List[float] = []
+
         d_in = datum_in.lower()
         d_out = datum_out.lower()
 
@@ -539,7 +652,7 @@ class GridGen:
                 continue
 
             val_out = props.get(d_out)
-            shift = None
+            shift: Optional[float] = None
             units = props.get("units", "meters").lower()
 
             # --- Perfect Data (Station has NAVD88) ---
@@ -566,7 +679,7 @@ class GridGen:
                             if units == "feet":
                                 shift_to_msl *= 0.3048
 
-                            # Add the FES baseline offset to mathematically tie it to NAVD88
+                            # Add the FES baseline offset to tie it to NAVD88
                             shift = shift_to_msl + fes_offset
 
             if shift is not None:

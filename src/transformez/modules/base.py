@@ -13,8 +13,7 @@ Base FetchezModule for use in transformez for subsetting rasters using vsicurl
 
 import os
 import logging
-
-# from tqdm import tqdm
+from typing import Any
 from contextlib import contextmanager
 from pathlib import Path
 import rasterio
@@ -47,7 +46,13 @@ class TransformezModule(FetchModule):
     from remote HTTP NetCDF or GeoTIFF files using GDAL /vsicurl/.
     """
 
-    def fetch_entry(self, entry, check_size=True, retries=5, verbose=True):
+    def fetch_entry(
+        self,
+        entry: Any,
+        check_size: bool = True,
+        retries: int = 5,
+        verbose: bool = True,
+    ) -> int:
         """Standardized /vsicurl/ windowed subset fetcher."""
 
         dst_fn = Path(entry["dst_fn"])

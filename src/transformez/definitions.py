@@ -12,7 +12,7 @@ and definitions.
 :license: MIT, see LICENSE for more details.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 import logging
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,16 @@ class Datums:
     }
 
     @classmethod
-    def get_unit_factor(cls, unit_str):
+    def get_unit_factor(cls, unit_str: str) -> float:
+        """Get conversion factor from unit string to meters.
+
+        Args:
+            unit_str: Unit identifier (e.g., 'm', 'ft', 'us-ft').
+
+        Returns:
+            Multiplier to convert to meters. Defaults to 1.0 if unknown.
+        """
+
         if not unit_str:
             return 1.0
         return cls.UNITS.get(unit_str.lower(), 1.0)
@@ -436,36 +445,54 @@ class Datums:
     }
 
     @classmethod
-    def get_unit(cls, epsg):
-        """Retrieves the Z-unit for a given EPSG code, defaulting to meters."""
+    def get_unit(cls, epsg: Optional[Union[int, str]]) -> str:
+        """Retrieves the Z-unit for a given EPSG code, defaulting to meters.
+
+        Args:
+            epsg: EPSG code (integer or string representation).
+
+        Returns:
+            Unit string ('m', 'ft', 'us-ft', etc.).
+        """
 
         if not epsg:
             return "m"
 
-        if epsg in cls.CDN:
-            return cls.CDN[epsg].get("z_unit", "m")
+        try:
+            epsg_int = int(epsg)
+        except (ValueError, TypeError):
+            return "m"
 
-        if epsg in cls.SURFACES:
-            return cls.SURFACES[epsg].get("z_unit", "m")
+        if epsg_int in cls.CDN:
+            return cls.CDN[epsg_int].get("z_unit", "m")
+
+        if epsg_int in cls.SURFACES:
+            return cls.SURFACES[epsg_int].get("z_unit", "m")
 
         return "m"
 
     @classmethod
-    def get_vdatum_by_name(cls, datum_name, region_check=None):
-        """
-        Return the datum ID.
+    def get_vdatum_by_name(
+        cls,
+        datum_name: str,
+        region_check: Optional[bool] = None,
+    ) -> Optional[int]:
+        """Return the datum ID by name.
 
         Args:
-            datum_name (str): The requested datum (e.g. 'mllw').
-            region_check (bool): If True, and the datum is regional (USA),
-                                 it might return the Global Proxy if requested.
-                                 (Currently simplistic, logic lives in Transform class).
+            datum_name: The requested datum (e.g., 'mllw', '5703').
+            region_check: If True, considers regional datums differently.
+
+        Returns:
+            EPSG code as integer, or None if not found.
         """
+
         if not datum_name:
             return None
+
         try:
             return int(datum_name)
-        except Exception:
+        except ValueError:
             pass
 
         s_name = str(datum_name).lower()
@@ -479,8 +506,15 @@ class Datums:
         return None
 
     @classmethod
-    def get_global_proxy(cls, datum_name):
-        """Returns the Global Model equivalent name (e.g. 'mllw' -> 'lat')."""
+    def get_global_proxy(cls, datum_name: str) -> Optional[str]:
+        """Returns the Global Model equivalent name (e.g. 'mllw' -> 'lat').
+
+        Args:
+            datum_name: Datum name or EPSG code string.
+
+        Returns:
+            Global proxy name (e.g., 'lat', 'hat', 'mss'), or None.
+        """
 
         s_name = str(datum_name).lower()
 
@@ -495,25 +529,51 @@ class Datums:
         return cls.GLOBAL_ALIASES.get(s_name)
 
     @classmethod
-    def get_frame_type(cls, epsg):
-        """Identify frame set (Surface, HTDP, CDN)."""
+    def get_frame_type(cls, epsg: Optional[Union[int, str]]) -> Optional[str]:
+        """Identify frame set (Surface, HTDP, CDN).
 
-        if epsg in cls.SURFACES:
+        Args:
+            epsg: EPSG code.
+
+        Returns:
+            Frame type string ('surface', 'htdp', 'cdn', 'global_tidal') or None.
+        """
+
+        if epsg is None:
+            return None
+
+        try:
+            epsg_int = int(epsg)
+        except (ValueError, TypeError):
+            return None
+
+        if epsg_int in cls.SURFACES:
             # Distinguish between NOAA VDatum and Global
-            if cls.SURFACES[epsg].get("region") == "global":
+            if cls.SURFACES[epsg_int].get("region") == "global":
                 return "global_tidal"
             return "surface"
-        if epsg in cls.HTDP:
+
+        if epsg_int in cls.HTDP:
             return "htdp"
 
-        if epsg in cls.CDN:
+        if epsg_int in cls.CDN:
             return "cdn"
 
         return None
 
     @classmethod
-    def get_default_geoid(cls, epsg):
-        """Return default geoid for a generic CDN EPSG, or None."""
+    def get_default_geoid(cls, epsg: Optional[Union[int, str]]) -> Optional[str]:
+        """Return default geoid for a generic CDN EPSG, or None.
+
+        Args:
+            epsg: EPSG code.
+
+        Returns:
+            Geoid name string, or None if not applicable.
+        """
+
+        if epsg is None:
+            return None
 
         try:
             e_int = int(epsg)
@@ -525,16 +585,31 @@ class Datums:
         return None
 
     @classmethod
-    def get_vdatum_id(cls, epsg):
-        """Retrieve the NOAA VDatum CLI string for an EPSG."""
+    def get_vdatum_id(cls, epsg: Optional[Union[int, str]]) -> Optional[str]:
+        """Retrieve the NOAA VDatum CLI string for an EPSG.
 
-        if epsg in cls.SURFACES:
-            return cls.SURFACES[epsg].get("vdatum_id")
+        Args:
+            epsg: EPSG code.
 
-        if epsg in cls.CDN:
-            return cls.CDN[epsg].get("vdatum_id")
+        Returns:
+            VDatum CLI string (e.g., 'navd88:m:height'), or None.
+        """
 
-        if epsg == 6319:
+        if epsg is None:
+            return None
+
+        try:
+            epsg_int = int(epsg)
+        except (ValueError, TypeError):
+            return None
+
+        if epsg_int in cls.SURFACES:
+            return cls.SURFACES[epsg_int].get("vdatum_id")
+
+        if epsg_int in cls.CDN:
+            return cls.CDN[epsg_int].get("vdatum_id")
+
+        if epsg_int == 6319:
             return "nad83_2011:m:height"
 
         return None
