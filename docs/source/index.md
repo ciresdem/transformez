@@ -1,4 +1,4 @@
-# Transformez Documentation
+# Transformez
 
 **Global vertical datum transformations, simplified**
 
