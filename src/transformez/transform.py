@@ -16,11 +16,13 @@ import os
 import logging
 import gzip
 import shutil
+from typing import Any, List, Optional, Tuple
+
 import numpy as np
-import fetchez
+import fetchez.api
 
 from .definitions import Datums
-from .grid_engine import GridEngine, GridGen
+from .grid_engine import GridEngine, GridGen, GridCorruptionError
 
 logger = logging.getLogger(__name__)
 
@@ -40,20 +42,37 @@ class VerticalTransform:
 
     def __init__(
         self,
-        region,
-        nx,
-        ny,
-        epsg_in,
-        epsg_out,
-        geoid_in=None,
-        geoid_out=None,
-        epoch_in=2010.0,
-        epoch_out=2010.0,
-        decay_pixels=100,
-        cache_dir=None,
-        use_stations=False,
-        verbose=True,
+        region: Any,
+        nx: int,
+        ny: int,
+        epsg_in: int,
+        epsg_out: int,
+        geoid_in: Optional[str] = None,
+        geoid_out: Optional[str] = None,
+        epoch_in: str = "2010.0",
+        epoch_out: str = "2010.0",
+        decay_pixels: int = 100,
+        cache_dir: Optional[str] = None,
+        use_stations: bool = False,
+        verbose: bool = True,
     ):
+        """Initialize VerticalTransform.
+
+        Args:
+            region: Geographic region object.
+            nx: Number of pixels along x-axis.
+            ny: Number of pixels along y-axis.
+            epsg_in: Source EPSG code.
+            epsg_out: Target EPSG code.
+            geoid_in: Source geoid name (optional).
+            geoid_out: Target geoid name (optional).
+            epoch_in: Source epoch (decimal years).
+            epoch_out: Target epoch (decimal years).
+            decay_pixels: Pixels for inland extrapolation decay.
+            cache_dir: Path to store downloaded grids.
+            use_stations: Force RBF interpolation using live tide stations.
+            verbose: Enable debug logging.
+        """
 
         self.region = region
         self.nx = nx
@@ -69,8 +88,8 @@ class VerticalTransform:
         self.geoid_in = geoid_in or Datums.get_default_geoid(self.epsg_in)
         self.geoid_out = geoid_out or Datums.get_default_geoid(self.epsg_out)
 
-        self.epoch_in = float(epoch_in) if epoch_in else 2010.0
-        self.epoch_out = float(epoch_out) if epoch_out else 2010.0
+        self.epoch_in = str(epoch_in) if epoch_in else "2010.0"
+        self.epoch_out = str(epoch_out) if epoch_out else "2010.0"
 
         self.ref_in = Datums.get_frame_type(self.epsg_in)
         self.ref_out = Datums.get_frame_type(self.epsg_out)
@@ -79,11 +98,9 @@ class VerticalTransform:
         self.use_stations = use_stations
 
         # --- HUB SELECTION ---
-        # Determine the Native Ellipsoid of Input and Output
         native_in = self._get_native_ellipsoid(self.epsg_in, self.ref_in)
         native_out = self._get_native_ellipsoid(self.epsg_out, self.ref_out)
 
-        # If both are NAD83, stay in NAD83. Otherwise, go to WGS84.
         if native_in == NAD83_EPSG and native_out == NAD83_EPSG:
             self.hub_epsg = NAD83_EPSG
             if self.verbose:
@@ -93,25 +110,43 @@ class VerticalTransform:
             if self.verbose:
                 logger.info(f"Using Global Hub: WGS84 (EPSG:{self.hub_epsg})")
 
-    def _get_native_ellipsoid(self, epsg, ref_type):
-        """Helper to identify the native frame of a datum."""
+    def _get_native_ellipsoid(
+        self, epsg: Optional[int], ref_type: Optional[str]
+    ) -> int:
+        """Identify the native frame of a datum.
+
+        Args:
+            epsg: EPSG code.
+            ref_type: Reference type ('surface', 'global_tidal', 'cdn', 'htdp').
+
+        Returns:
+            Native ellipsoid EPSG code.
+        """
+
+        if epsg is None or ref_type is None:
+            return WGS84_EPSG
 
         if ref_type in ["surface", "global_tidal"]:
-            # NOAA VDatum = NAD83, Global = WGS84
             region = Datums.SURFACES[epsg].get("region")
             return NAD83_EPSG if region == "usa" else WGS84_EPSG
         elif ref_type == "cdn":
-            # Look up in definitions, default to NAD83 for US geoids
             return Datums.CDN.get(epsg, {}).get("ellipsoid", NAD83_EPSG)
         elif ref_type == "htdp":
-            # If it's a Frame, it is its own native ellipsoid
             return epsg
-        return WGS84_EPSG  # Default
+        return WGS84_EPSG
 
-    def fetch_grid(self, module_name, **kwargs):
-        """Generic fetcher wrapper using the new fetchez API."""
+    def fetch_grid(self, module_name: str, **kwargs: Any) -> List[str]:
+        """Generic fetcher wrapper using the new fetchez API.
 
-        files = fetchez.get(
+        Args:
+            module_name: Module name to fetch from.
+            **kwargs: Additional fetcher arguments.
+
+        Returns:
+            List of valid grid file paths.
+        """
+
+        files = fetchez.api.get(
             module=module_name,
             region=self.region,
             outdir=self.cache_dir,
@@ -121,7 +156,7 @@ class VerticalTransform:
             **kwargs,
         )
 
-        valid = []
+        valid: List[str] = []
 
         for fn in files:
             if not os.path.exists(fn):
@@ -143,7 +178,6 @@ class VerticalTransform:
                         logger.debug(
                             f"Read-only cache detected. Assuming {fn} is already unzipped."
                         )
-                        # The admin already unzipped this. Glob the cache dir for the files.
                         extracted = []
                         for root, _, filenames in os.walk(self.cache_dir):
                             for f in filenames:
@@ -175,72 +209,22 @@ class VerticalTransform:
                 valid.append(fn)
         return valid
 
-    def fetch_grid_(self, module_name, **kwargs):
-        """Generic fetcher wrapper."""
+    def _get_grid(self, provider: str, name: str, max_retries: int = 3) -> np.ndarray:
+        """Fetch and load a grid with corruption recovery.
 
-        fetched_fns = fetchez.get(
-            module_name, outdir=self.cache_dir, ignore_failures=False, **kwargs
-        )
-        valid = []
-        for fn in fetched_fns:
-            if not os.path.exists(fn):
-                continue
+        Args:
+            provider: Provider name (e.g., 'proj', 'vdatum').
+            name: Grid name.
+            max_retries: Maximum retry attempts.
 
-            if fn.endswith(".zip"):
-                datatype = kwargs.get("datatype")
-                if datatype:
-                    fns_to_extract = [datatype, ".met", ".inf"]
-                else:
-                    fns_to_extract = None
+        Returns:
+            2D grid array.
 
-                try:
-                    extracted = fetchez.utils.p_f_unzip(
-                        fn, fns=fns_to_extract, outdir=self.cache_dir
-                    )
-                except Exception as e:
-                    if e.errno == 30 or "Read-only" in str(e):
-                        logger.debug(
-                            f"Read-only cache detected. Assuming {fn} is already unzipped."
-                        )
-                        # The admin already unzipped this. Glob the cache dir for the files.
-                        extracted = []
-                        for root, _, filenames in os.walk(self.cache_dir):
-                            for f in filenames:
-                                extracted.append(os.path.join(root, f))
-                    else:
-                        raise
-
-                valid.extend(
-                    [
-                        f
-                        for f in extracted
-                        if f.endswith((".gtx", ".tif", ".grd", ".nc"))
-                        and "unc." not in f
-                    ]
-                )
-            elif fn.endswith(".gz"):
-                try:
-                    out_fn = os.path.splitext(fn)[0]
-                    if not os.path.exists(out_fn):
-                        logger.info(f"Decompressing {fn}...")
-                        with gzip.open(fn, "rb") as f_in:
-                            with open(out_fn, "wb") as f_out:
-                                shutil.copyfileobj(f_in, f_out)
-
-                    valid.append(out_fn)
-                except Exception as e:
-                    logger.error(f"Failed to decompress {fn}: {e}")
-            elif fn.endswith((".gtx", ".tif", ".grd", ".nc", ".mss")):
-                valid.append(fn)
-
-        return valid
-
-    def _get_grid(self, provider, name, max_retries=3):
-
-        from .grid_engine import GridCorruptionError
+        Raises:
+            MissingGridError: If grid cannot be retrieved after retries.
+        """
 
         if not name:
-            # return np.zeros((self.ny, self.nx))
             raise MissingGridError("A valid grid name must be provided to the fetcher.")
 
         if not provider:
@@ -255,8 +239,8 @@ class VerticalTransform:
                 import rasterio
                 from datetime import datetime
 
-                def get_vdatum_date(gtx_path):
-                    """Finds and parses the release date from VDatum metadata files."""
+                def get_vdatum_date(gtx_path: str) -> datetime:
+                    """Parse release date from VDatum metadata files."""
 
                     dir_name = os.path.dirname(gtx_path)
                     meta_files = [
@@ -276,7 +260,6 @@ class VerticalTransform:
 
                         first_line = content[0]
 
-                        # Parse the first line "#Mon Jul 08 10:27:07 EDT 2019"
                         if first_line.startswith("#"):
                             parts = first_line.replace("#", "").split()
                             if len(parts) >= 6:
@@ -299,7 +282,6 @@ class VerticalTransform:
                                 month = month_map.get(parts[1][:3].title(), 1)
                                 return datetime(year, month, day)
 
-                        # Fallback to scanning for "released_date="
                         for line in content:
                             if "released_date=" in line:
                                 date_str = line.split("=")[1].strip()
@@ -311,8 +293,9 @@ class VerticalTransform:
 
                     return datetime(1970, 1, 1)
 
-                def sort_key(filepath):
-                    # Time Sorting (Oldest -> Newest)
+                def sort_key(filepath: str) -> Tuple[float, float]:
+                    """Sort key for time-based ordering."""
+
                     date_val = get_vdatum_date(filepath)
 
                     try:
@@ -327,10 +310,10 @@ class VerticalTransform:
                 files.sort(key=sort_key, reverse=True)
 
             if not files:
-                # return np.zeros((self.ny, self.nx))
                 if attempt < max_retries - 1:
                     logger.debug(
-                        f"Grid '{name}' not found. Wiping cache for '{provider}' and retrying (Attempt {attempt + 2}/{max_retries})..."
+                        f"Grid '{name}' not found. Wiping cache for '{provider}' "
+                        f"and retrying (Attempt {attempt + 2}/{max_retries})..."
                     )
 
                     if os.path.exists(self.cache_dir):
@@ -346,7 +329,8 @@ class VerticalTransform:
                     continue
                 else:
                     logger.debug(
-                        f"Grid probe failed: Could not locate grid '{name}' from '{provider}'. Falling back..."
+                        f"Grid probe failed: Could not locate grid '{name}' "
+                        f"from '{provider}'. Falling back..."
                     )
 
                     raise MissingGridError(
@@ -373,23 +357,43 @@ class VerticalTransform:
             except GridCorruptionError:
                 if attempt < max_retries - 1:
                     logger.warning(
-                        f"Download corruption detected. Retrying fetch (Attempt {attempt + 2}/{max_retries})..."
+                        "Download corruption detected. Retrying fetch "
+                        f"(Attempt {attempt + 2}/{max_retries})..."
                     )
                     continue
                 else:
                     logger.error(
                         "Max retries reached. Could not secure an uncorrupted grid."
                     )
-                    # return np.zeros((self.ny, self.nx))
+                    logger.error(
+                        "Max retries reached. Could not secure an uncorrupted grid."
+                    )
                     raise MissingGridError(f"Grid '{name}' is persistently corrupted.")
 
-        # return np.zeros((self.ny, self.nx))
         raise MissingGridError(
             f"Failed to fetch grid '{name}' due to an unknown error."
         )
 
-    def _get_htdp_shift(self, epsg_from, epsg_to, epoch_from, epoch_to, context=""):
-        """Calculate Frame Shift via HTDP with Fallback."""
+    def _get_htdp_shift(
+        self,
+        epsg_from: int,
+        epsg_to: int,
+        epoch_from: str = "2010.0",
+        epoch_to: str = "2010.0",
+        context: str = "",
+    ) -> np.ndarray:
+        """Calculate Frame Shift via HTDP with fallback.
+
+        Args:
+            epsg_from: Source EPSG code.
+            epsg_to: Target EPSG code.
+            epoch_from: Source epoch.
+            epoch_to: Target epoch.
+            context: Context string for logging.
+
+        Returns:
+            2D shift grid.
+        """
 
         if epsg_from == epsg_to and epoch_from == epoch_to:
             return np.zeros((self.ny, self.nx))
@@ -403,30 +407,33 @@ class VerticalTransform:
             )
             tool = htdp.HTDP(version="3.5.0", verbose=False)
 
-            # Attempt 1: Full Cross-Epoch Shift (Datum Shift + Crustal Velocity)
-            # This seems to fail more often than not!
             grid = tool.run_grid(
-                self.region, self.nx, self.ny, epsg_from, epsg_to, epoch_from, epoch_to
+                self.region,
+                self.nx,
+                self.ny,
+                epsg_from,
+                epsg_to,
+                str(epoch_from),
+                str(epoch_to),
             )
 
-            # --- FALLBACK ---
             if not np.any(grid):
                 logger.warning(
-                    f"    [HTDP WARNING] Cross-epoch shift failed (likely outside modeled velocity region for {epoch_from} -> {epoch_to})."
+                    f"    [HTDP WARNING] Cross-epoch shift failed (likely outside "
+                    f"modeled velocity region for {epoch_from} -> {epoch_to})."
                 )
                 logger.warning(
                     f"    [HTDP WARNING] Falling back to static datum shift at Output Epoch {epoch_to}."
                 )
 
-                # Attempt 2: Static Shift (Datum Shift Only)
                 grid = tool.run_grid(
                     self.region,
                     self.nx,
                     self.ny,
                     epsg_from,
                     epsg_to,
-                    epoch_to,
-                    epoch_to,
+                    str(epoch_from),
+                    str(epoch_to),
                 )
 
             if np.any(grid):
@@ -442,12 +449,19 @@ class VerticalTransform:
             logger.error(f"    [HTDP] Failed: {e}")
             return np.zeros((self.ny, self.nx))
 
-    def _fetch_geoid_with_fallback(self, target_geoid):
-        """Fetches a geoid grid. If the primary geoid lacks coverage (e.g., GEOID18 in AK),
-        it automatically falls back to older, compatible models.
+    def _fetch_geoid_with_fallback(self, target_geoid: str) -> Tuple[np.ndarray, str]:
+        """Fetch a geoid grid with fallback to older models.
+
+        Args:
+            target_geoid: Target geoid name.
+
+        Returns:
+            Tuple of (grid, used_geoid_name).
+
+        Raises:
+            MissingGridError: If all geoid fallbacks fail.
         """
 
-        # Ordered list of preferred US geoids (Newest to Oldest)
         us_geoids = ["g2018", "g2012b", "geoid09"]
 
         if target_geoid in us_geoids:
@@ -465,22 +479,27 @@ class VerticalTransform:
                 if np.any(grid):
                     if g != target_geoid and self.verbose:
                         logger.info(
-                            f"    [Geoid Fallback] '{target_geoid}' lacks coverage here. Falling back to '{g}'."
+                            f"    [Geoid Fallback] '{target_geoid}' lacks coverage here. "
+                            f"Falling back to '{g}'."
                         )
-                    return grid, g
+                    return (grid, g)
             except MissingGridError:
                 logger.debug(
-                    f"    [Geoid Check] '{g}' missing or out of bounds. Trying next fallback..."
+                    f"    [Geoid Check] '{g}' missing or out of bounds. "
+                    "Trying next fallback..."
                 )
                 continue
 
         raise MissingGridError(
             f"Geoid '{target_geoid}' and all fallbacks lack coverage or failed to download."
         )
-        # return np.zeros((self.ny, self.nx)), target_geoid
 
     def _fetch_ocean_mask(self):
-        """Fetches NASA Dist2Coast raster and thresholds it into a boolean land mask."""
+        """Fetch NASA Dist2Coast raster and threshold to boolean land mask.
+
+        Returns:
+            Boolean ocean mask, or None if fetch failed.
+        """
 
         logger.info("    [Coastline] Fetching Dist2Coast raster for inland masking...")
 
@@ -511,11 +530,21 @@ class VerticalTransform:
     # =========================================================================
     # Chains
     # =========================================================================
-    def _get_vdatum_chain(self, datum_name, geoid_name):
-        """Builds shift: Tidal -> [NAD83 Native]."""
+    def _get_vdatum_chain(
+        self, datum_name: str, geoid_name: Optional[str]
+    ) -> Tuple[np.ndarray, str]:
+        """Build shift chain: Tidal -> [NAD83 Native].
+
+        Args:
+            datum_name: Tidal datum name.
+            geoid_name: Geoid name for orthometric conversion.
+
+        Returns:
+            Tuple of (shift_grid, description).
+        """
 
         hydro_shift = np.zeros((self.ny, self.nx))
-        desc = []
+        desc: List[str] = []
 
         # Tidal -> LMSL
         if datum_name not in ["msl", "5714", "lmsl"]:
@@ -525,7 +554,8 @@ class VerticalTransform:
                     grid = np.full((self.ny, self.nx), np.nan)
             except MissingGridError:
                 logger.debug(
-                    f"    [VDatum Check] '{datum_name}' missing. Flagging for offshore proxy."
+                    f"    [VDatum Check] '{datum_name}' missing. "
+                    "Flagging for offshore proxy."
                 )
                 grid = np.full((self.ny, self.nx), np.nan)
 
@@ -582,7 +612,7 @@ class VerticalTransform:
                             WGS84_EPSG,
                             NAD83_EPSG,
                             self.epoch_in,
-                            2010.0,
+                            "2010.0",
                             context="(Aligning Global Proxy to NAD83)",
                         )
                         fes_nad83 = global_shift + htdp_wgs_to_nad
@@ -620,7 +650,8 @@ class VerticalTransform:
 
             elif proxy_name:
                 logger.info(
-                    f"Partial VDatum coverage detected. Fetching {proxy_name.upper()} (FES) for offshore blending..."
+                    f"Partial VDatum coverage detected. Fetching {proxy_name.upper()} "
+                    "(FES) for offshore blending..."
                 )
                 global_shift, d_global = self._get_global_chain(
                     proxy_name, model="fes2014"
@@ -628,7 +659,7 @@ class VerticalTransform:
 
                 if global_shift is not None and np.any(global_shift):
                     htdp_wgs_to_nad = self._get_htdp_shift(
-                        WGS84_EPSG, NAD83_EPSG, self.epoch_in, 2010.0
+                        WGS84_EPSG, NAD83_EPSG, self.epoch_in, "2010.0"
                     )
                     fes_nad83 = global_shift + htdp_wgs_to_nad
                     fes_navd88 = fes_nad83 - geoid_grid
@@ -664,14 +695,22 @@ class VerticalTransform:
 
         return total_shift, " + ".join(desc)
 
-    def _get_global_chain(self, datum_name, model="fes2014"):
-        """Builds shift: Global Tidal -> WGS84 Native."""
+    def _get_global_chain(
+        self, datum_name: str, model: str = "fes2014"
+    ) -> Tuple[np.ndarray, str]:
+        """Build shift: Global Tidal -> WGS84 Native.
+
+        Args:
+            datum_name: Tidal datum name.
+            model: Model name (e.g., 'fes2014', 'dtu25').
+
+        Returns:
+            Tuple of (shift_grid, description).
+        """
 
         tidal_shift = np.zeros((self.ny, self.nx))
-        # mss_shift = np.zeros((self.ny, self.nx))
         desc = []
 
-        # Translate the local datum (e.g. mllw) to the global proxy (e.g. lat)
         proxy_name = Datums.get_global_proxy(datum_name)
 
         # DTU25 MSS Baseline (Absolute height above WGS84)
@@ -719,91 +758,40 @@ class VerticalTransform:
 
         return total_shift, " + ".join(desc)
 
-    def _get_global_chain_depreciated(self, datum_name, model="fes2014"):
-        """Builds shift: Global Tidal -> WGS84 Native."""
-
-        tidal_shift = np.zeros((self.ny, self.nx))
-        mss_shift = np.zeros((self.ny, self.nx))
-        desc = []
-
-        model_def = Datums.MODELS.get(model)
-        if not model_def:
-            return tidal_shift, "Error"
-
-        provider = model_def["provider"]
-
-        # Tidal -> MSS
-        if datum_name == "lat":
-            grid_name = model_def["grids"].get("lat")
-            if grid_name:
-                grid = self._get_grid(provider, grid_name)
-                if np.nanmean(grid) > 0:
-                    grid *= -1.0
-                tidal_shift += grid
-                desc.append("LAT->MSS")
-
-        elif datum_name == "hat":
-            lat_name = model_def["grids"].get("lat")
-            if lat_name:
-                grid = self._get_grid(provider, lat_name)
-                if np.nanmean(grid) > 0:
-                    grid *= -1.0
-                tidal_shift += grid * -1.0
-                desc.append("HAT->MSS(Symmetry)")
-
-        # MSS -> WGS84
-        mss_name = model_def["grids"].get("mss")
-        if mss_name:
-            mss_grid = self._get_grid(provider, mss_name)
-            if provider == "seanoe" or "fes" in model.lower():
-                mss_grid -= 0.70
-                desc.append("MSS->WGS84(TP_Corr)")
-            else:
-                desc.append("MSS->Ellipsoid")
-
-            # --- MDT ---
-            # Isolate the Mean Dynamic Topography (MDT) by subtracting EGM2008
-            egm_grid, _ = self._fetch_geoid_with_fallback("egm2008")
-            mdt_grid = mss_grid - egm_grid
-            desc.append("MDT Decay -> EGM2008")
-
-        ocean_mask = self._fetch_ocean_mask()
-
-        if mss_name:
-            mdt_decayed = GridEngine.fill_nans(
-                mdt_grid,
-                decay_pixels=self.decay_pixels,
-                buffer_pixels=10,
-                ocean_mask=ocean_mask,
-            )
-            mss_shift = mdt_decayed + egm_grid
-
-        tidal_shift = GridEngine.fill_nans(
-            tidal_shift,
-            decay_pixels=self.decay_pixels,
-            buffer_pixels=10,
-            ocean_mask=ocean_mask,
-        )
-
-        total_shift = tidal_shift + mss_shift
-        if not desc:
-            return total_shift, "Global Chain (Empty)"
-
-        return total_shift, " + ".join(desc)
-
     # =========================================================================
     # Steps
     # =========================================================================
-    def _step_to_hub(self, epsg, ref_type, geoid=None, epoch=None):
+    def _step_to_hub(
+        self,
+        epsg: Optional[int],
+        ref_type: Optional[str],
+        geoid: Optional[str] = None,
+        epoch: str = "2010.0",
+    ) -> Tuple[np.ndarray, str]:
+        """Step from source datum to central hub.
+
+        Args:
+            epsg: EPSG code.
+            ref_type: Reference type.
+            geoid: Geoid name.
+            epoch: Epoch.
+
+        Returns:
+            Tuple of (shift_grid, description).
+        """
+
         shift = np.zeros((self.ny, self.nx))
         if epsg == self.hub_epsg:
-            return shift, "Already at Hub"
+            return (shift, "Already at Hub")
 
         native_epsg = self._get_native_ellipsoid(epsg, ref_type)
         chain_shift = None
         chain_desc = ""
 
         if ref_type in ["surface", "global_tidal"]:
+            if epsg is None or epsg not in Datums.SURFACES:
+                return (shift, "No surface definition")
+
             datum_name = Datums.SURFACES[epsg]["name"]
             region_tag = Datums.SURFACES[epsg].get("region")
 
@@ -840,11 +828,29 @@ class VerticalTransform:
                 )
                 chain_shift += htdp_shift
                 chain_desc += f" + Frame({native_epsg}->{self.hub_epsg})"
-            return chain_shift, chain_desc
+            return (chain_shift, chain_desc)
 
-        return shift, ""
+        return (shift, "")
 
-    def _step_from_hub(self, epsg, ref_type, geoid=None, epoch=None):
+    def _step_from_hub(
+        self,
+        epsg: Optional[int],
+        ref_type: Optional[str],
+        geoid: Optional[str] = None,
+        epoch: str = "2010.0",
+    ) -> Tuple[np.ndarray, str]:
+        """Step from central hub to target datum.
+
+        Args:
+            epsg: EPSG code.
+            ref_type: Reference type.
+            geoid: Geoid name.
+            epoch: Epoch.
+
+        Returns:
+            Tuple of (shift_grid, description).
+        """
+
         shift = np.zeros((self.ny, self.nx))
         if epsg == self.hub_epsg:
             return shift, "Remain at Hub"
@@ -867,6 +873,9 @@ class VerticalTransform:
             desc_parts.append(f"Hub({self.hub_epsg}->{native_epsg})")
 
         if ref_type in ["surface", "global_tidal"]:
+            if epsg is None or epsg not in Datums.SURFACES:
+                return (np.zeros((self.ny, self.nx)), "FAILED: No surface definition")
+
             datum_name = Datums.SURFACES[epsg]["name"]
             region_tag = Datums.SURFACES[epsg].get("region")
             chain_geoid = geoid if geoid else "g2018"
@@ -884,7 +893,6 @@ class VerticalTransform:
                         s, d = self._get_global_chain(proxy_name, model="fes2014")
                         if s is not None:
                             total_out -= s
-                            # desc_parts.append(f"GlobalProxy({proxy_name})")
                             desc_parts.append(d)
                         else:
                             return np.zeros(
@@ -894,14 +902,12 @@ class VerticalTransform:
                         return np.zeros((self.ny, self.nx)), "FAILED Output Chain"
                 else:
                     total_out -= s
-                    # desc_parts.append(f"Native -> VDatum({datum_name})")
                     desc_parts.append(d)
 
             elif region_tag == "global":
                 s, d = self._get_global_chain(datum_name)
                 if s is not None:
                     total_out -= s
-                    # desc_parts.append(f"Native -> Global({datum_name})")
                     desc_parts.append(d)
 
         elif ref_type == "cdn":
@@ -916,9 +922,15 @@ class VerticalTransform:
             total_out -= geoid_grid
             desc_parts.append(f"Native -> Ortho(via {used_geoid})")
 
-        return total_out, " + ".join(desc_parts)
+        return (total_out, " + ".join(desc_parts))
 
-    def _vertical_transform(self, epsg_in, epsg_out):
+    def _vertical_transform(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Perform the full vertical transformation.
+
+        Returns:
+            Tuple of (shift_grid, uncertainty_grid).
+        """
+
         logger.info("-" * 60)
         logger.info(f"Transformation Plan: {self.epsg_in} -> {self.epsg_out}")
         logger.info(f"Hub Frame: EPSG:{self.hub_epsg}")
@@ -961,4 +973,4 @@ class VerticalTransform:
             logger.info("  => Total Shift Applied (Zero / Identity)")
 
         logger.info("-" * 60)
-        return total_shift, total_unc
+        return (total_shift, total_unc)

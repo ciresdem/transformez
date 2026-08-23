@@ -28,7 +28,7 @@ dependencies = [
     'numpy>1.24',
     'pyproj>3.6.1',
     'rasterio>1.4.0',
-    'fetchez>=0.6.0',
+    'fetchez>0.8.0',
     'scipy',
     'click',
 ]
@@ -117,3 +117,13 @@ module = [
 ]
 follow_untyped_imports = false
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+markers = [
+    "health: marks tests that require live network access to external APIs (run with '-m health')"
+]
+filterwarnings = [
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
+    "ignore:.*Support for class-based `config` is deprecated.*",
+    "ignore::DeprecationWarning:planetary_computer.*"
+]

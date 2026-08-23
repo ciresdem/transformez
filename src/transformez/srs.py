@@ -223,7 +223,7 @@ class SRSParser:
                 geoid_out=self.tc["dst_geoid"],
                 cache_dir=self.cache_dir,
             )
-            shift_arr, _ = vt._vertical_transform(vt.epsg_in, vt.epsg_out)
+            shift_arr, _ = vt._vertical_transform()
 
             # Warp the Grid Back to the Source CRS
             if src_is_projected:

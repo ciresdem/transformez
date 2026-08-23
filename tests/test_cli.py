@@ -1,8 +1,42 @@
+import pytest
 import subprocess
 import sys
+from click.testing import CliRunner
+
+from transformez.cli import transformez_cli
 
 # CMD will run Transformez
 CMD = [sys.executable, "-m", "transformez.cli"]
+
+
+@pytest.fixture
+def runner():
+    """Fixture to provide a Click CliRunner for all tests."""
+
+    return CliRunner()
+
+
+def test_cli_base_help(runner):
+    """Ensure the base command runs and all subcommands are registered."""
+
+    result = runner.invoke(transformez_cli, ["--help"])
+
+    assert result.exit_code == 0
+    assert (
+        "Apply vertical datum transformations and generate shift grids."
+        in result.output
+    )
+
+    expected_commands = [
+        "grid",
+        "raster",
+        "list",
+        "prefetch",
+        "htdp",
+        "vdatum",
+    ]
+    for cmd in expected_commands:
+        assert cmd in result.output, f"Missing '{cmd}' command in CLI help!"
 
 
 def run_transformez(args):

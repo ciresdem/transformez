@@ -198,7 +198,7 @@ def generate_grid(
         verbose=verbose,
     )
 
-    shift_array, _ = vt._vertical_transform(vt.epsg_in, vt.epsg_out)
+    shift_array, _ = vt._vertical_transform()
 
     if shift_array is None:
         logger.error("Transformation failed to generate a grid.")
@@ -314,7 +314,7 @@ def transform_raster(
         verbose=verbose,
     )
 
-    shift_array, _ = vt._vertical_transform(vt.epsg_in, vt.epsg_out)
+    shift_array, _ = vt._vertical_transform()
 
     if shift_array is None:
         logger.error("Failed to generate shift array for the raster bounds.")
@@ -491,7 +491,7 @@ def prefetch_region(
                 verbose=verbose,
             )
 
-            vt._vertical_transform(vt.epsg_in, vt.epsg_out)
+            vt._vertical_transform()
 
         logger.info("Successfully populated offline cache!")
         return True
