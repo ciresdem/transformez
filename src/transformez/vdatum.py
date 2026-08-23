@@ -26,6 +26,17 @@ HAS_VDATUM = utils.cmd_check("vdatum.jar", vdatum_cmd).decode()
 
 
 class Vdatum:
+    """Wrapper for NOAA's VDatum Java transformation engine.
+
+    Attributes:
+        jar: Path to vdatum.jar
+        ivert: Input vertical datum (e.g., "navd88:m:height")
+        overt: Output vertical datum
+        ihorz: Input horizontal datum (e.g., "NAD83_2011")
+        ohorz: Output horizontal datum
+        region: VDatum region grid number
+    """
+
     def __init__(
         self,
         jar=None,
