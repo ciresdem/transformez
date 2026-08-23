@@ -1,4 +1,4 @@
-# Transformez Documentation
+# Transformez
 
 **Global vertical datum transformations, simplified**
 
@@ -6,7 +6,7 @@
 
 **Transformez** is a standalone Python engine for converting geospatial data between vertical datums (e.g., `MLLW` ↔ `NAVD88` ↔ `Ellipsoid`).
 
-Transformez is part of the [Continuous DEMs Project](https://continuous-dems.readthedocs.io/), an ecosystem of tools for modern, continuous digital elevation model generation. Originally incubated within CUDEM, the engine has evolved into a standalone datum transformation suite.
+Transformez is part of the [Continuous DEMs Project](https://continuous-dems.readthedocs.io/), an ecosystem of tools for modern, continuous digital elevation model generation.
 
 ## Key Features
 
