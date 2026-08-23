@@ -8,18 +8,35 @@
 
 Originally developed as the core transformation engine for the [CUDEM](https://github.com/continuous-dems/cudem) project, Transformez has evolved into a standalone datum transformation suite.
 
+## Key Features
+
+- **Dynamic Hub-and-Spoke routing** — Automatically selects the optimal geodetic pathway (NAD83 or WGS84) for your transformation
+- **Continuous coastal blending** — Seamlessly merges NOAA VDatum with global satellite altimetry (FES2014/DTU25)
+- **Inland tidal decay** — Smart extrapolation with Hermite S-curve smoothing for flood modeling
+- **Autonomous self-healing** — Automatic geoid fallbacks, corruption recovery, and HTDP tectonic fallbacks
+- **Global coverage** — Works anywhere on Earth via dynamic proxy chaining when regional models are unavailable
+- **Memory-safe** — Windowed I/O for transforming massive DEMs without loading them into RAM
+- **CLI + Python API** — Use as a command-line tool or embed in your pipeline
+- **Offline field use** — Pre-download grids with `transformez prefetch` for air-gapped environments
+
 ## Quickstart
 
 ![Shift Grid Example](_static/mllw2nvd.png)
 *(Above: A generated vertical shift grid transforming MLLW to NAVD88)*
 
-```transformez grid -R loc:"new orleans" -E 3s -I mllw -O 5703```
+```bash
+transformez grid -R loc:"new orleans" -E 3s -I mllw -O 5703
+```
 
-**Installation**
+## Installation:
 
 ```bash
 pip install transformez
 ```
+
+>Note: To enable matplotlib previews, install with the preview extra:
+>
+>```pip install transformez[preview]```
 
 ## Command Line Interface:
 
@@ -63,6 +80,10 @@ out_file = transformez.transform_raster(
     output_raster="my_dem_navd88.tif"
 )
 ```
+
+## Learn More
+
+Interested in how `transformez` routes complex multi-step transformations? Read the [Geodetic Methodology & Architecture](user_guide/methodology.md) guide to learn about the dynamic hub-and-spoke model, sign conventions, coastal blending, and autonomous self-healing.
 
 ```{toctree}
 :maxdepth: 2

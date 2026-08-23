@@ -17,3 +17,12 @@ title: "Transformez"
 version: 0.6.0
 date-released: 2026-08-21
 url: "https://github.com/continuous-dems/transformez"
+keywords:
+  - vertical datum
+  - geodesy
+  - tidal transformation
+  - DEM
+  - VDatum
+  - NOAA
+  - FES2014
+license: MIT
