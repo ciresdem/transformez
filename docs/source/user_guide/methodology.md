@@ -116,14 +116,6 @@ Transformez is designed to survive infrastructure failures automatically:
 | NetCDF corruption         | Delete cache, re-download | Automatic retry          |
 | VDatum grid absent        | Use DTU/FES2014 proxy     | Minimal—blended smoothly |
 
-
-## Known Limitations
-
-1. **No Real-Time Tides**: Transformation grids are static snapshots—not live tide predictions.
-2. **Limited Non-US Coverage**: Outside USA/CAN, global proxies (FES2014/DTU25) may have lower resolution.
-3. **Epoch Sensitivity**: HTDP-based epoch adjustments may fail outside 1900–2100.
-4. **Memory Constraints**: Large DEMs (>10GB) require careful block sizing to avoid OOM errors.
-
 ---
 
 ## Getting Started
