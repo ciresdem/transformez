@@ -7,7 +7,7 @@
 <p align="center"><strong>Global vertical datum transformations, simplified.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/continuous-dems/transformez"><img src="https://img.shields.io/badge/version-0.6.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com/continuous-dems/transformez"><img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.12+-yellow.svg" alt="Python"></a>
   <a href="https://badge.fury.io/py/transformez"><img src="https://badge.fury.io/py/transformez.svg" alt="PyPI version"></a>
@@ -64,7 +64,10 @@ fetchez gebco ... --hook transformez:datum_in=5773,datum_out=4979
 ## 📚 Documentation
 Would you like to know more? Check out our [Official Documentation](https://transformez.readthedocs.io) to learn about:
 
-* **The Python API:** Build custom transformation into your apps.
+* **The Python API:** Build custom, memory-safe transformations directly into your applications.
+* **Offline Field Ops:** Pre-fetch global FES models, VDatum grids, and NASA coastlines for offline execution (`transformez prefetch`).
+* **Live CO-OPS Data:** Dynamically interpolate geodetic surfaces using live tide station offsets (`--use-stations`).
+* **Data Provenance:** Learn how Transformez embeds automated metadata tags into output GeoTIFFs for strict scientific traceability.
 
 ---
 
