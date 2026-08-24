@@ -83,11 +83,11 @@ class TransformezModule(FetchModule):
 
             env_kwargs = {
                 "GDAL_HTTP_USERAGENT": DEFAULT_USER_AGENT,
-                "CPL_VSIL_CURL_USE_HEAD": "YES",
+                "CPL_VSIL_CURL_USE_HEAD": "NO",
                 "GDAL_DISABLE_READDIR_ON_OPEN": "YES",
                 "HDF5_USE_FILE_LOCKING": "FALSE",
                 "VSI_CACHE": "TRUE",
-                "VSI_CACHE_SIZE": "50000000",
+                "VSI_CACHE_SIZE": "50000000",  # 50MB cache to stop RAM trashing
             }
 
             with rasterio.Env(**env_kwargs):
