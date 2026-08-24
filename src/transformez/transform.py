@@ -532,7 +532,7 @@ class VerticalTransform:
     # =========================================================================
     def _get_vdatum_chain(
         self, datum_name: str, geoid_name: Optional[str]
-    ) -> Tuple[np.ndarray, str]:
+    ) -> Tuple[Optional[np.ndarray], str]:
         """Build shift chain: Tidal -> [NAD83 Native].
 
         Args:
@@ -575,8 +575,15 @@ class VerticalTransform:
 
         # Ortho -> NAD83 (Geoid)
         actual_geoid = geoid_name if geoid_name else "g2018"
-        geoid_grid, used_geoid = self._fetch_geoid_with_fallback(actual_geoid)
-        desc.append(f"Geoid({used_geoid}->NAD83)")
+        try:
+            geoid_grid, used_geoid = self._fetch_geoid_with_fallback(actual_geoid)
+            desc.append(f"Geoid({used_geoid}->NAD83)")
+        except MissingGridError:
+            logger.debug(
+                f"    [Vdatum Check] Geoid '{actual_geoid}' missing. "
+                "Flagging for global proxy."
+            )
+            return None, "Geoid Missing"
 
         # =======================================================
         # Coastal Blend
@@ -797,6 +804,12 @@ class VerticalTransform:
 
             if region_tag == "usa":
                 s, d = self._get_vdatum_chain(datum_name, geoid)
+                if s is None:
+                    native_epsg = WGS84_EPSG
+                    proxy_name = Datums.get_global_proxy(datum_name)
+                    if proxy_name:
+                        s, d = self._get_global_chain(proxy_name, model="fes2014")
+                        # d = f"Global({proxy_name}) [Proxy] -> WGS84"
                 chain_shift, chain_desc = s, d
 
             elif region_tag == "global":

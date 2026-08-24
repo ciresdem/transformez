@@ -14,7 +14,8 @@ This holds various utility functions.
 import os
 import subprocess
 import logging
-from typing import Tuple, Optional
+import shlex
+from typing import Tuple, Optional, Union, List
 
 import numpy as np
 import rasterio
@@ -39,20 +40,26 @@ def cmd_exists(x: str) -> bool:
     )
 
 
-def run_cmd(args: Tuple[str, ...]) -> Tuple[str, int]:
+def run_cmd(args: Union[str, List[str], Tuple[str, ...]]) -> Tuple[str, int]:
     """Standalone replacement for utils.run_cmd using subprocess.
 
-    Args:
-        args: Command arguments.
-
-    Returns:
-        Tuple of (stdout, return_code).
+    Securely handles strings, lists, and single-item tuples by
+    tokenizing them before execution.
     """
 
-    logger.debug(f"Running: {' '.join(args)}")
+    if isinstance(args, (tuple, list)) and len(args) == 1 and isinstance(args[0], str):
+        args = args[0]
+
+    if isinstance(args, str):
+        cmd_list = shlex.split(args)
+    else:
+        cmd_list = list(args)
+
+    logger.debug(f"Running: {' '.join(cmd_list)}")
+
     result = subprocess.run(
-        list(args),
-        shell=False if isinstance(args, list) else True,
+        cmd_list,
+        shell=False,
         capture_output=True,
         text=True,
     )
