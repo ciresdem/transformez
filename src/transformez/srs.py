@@ -13,13 +13,14 @@ and a self generated vertical transformation grid.
 """
 
 import os
+import hashlib
 import logging
 import datetime
 from typing import Any, Dict, Optional, Tuple
 
 from pyproj import CRS, Transformer
 import numpy as np
-from rasterio.warp import reproject, Resampling
+from rasterio.warp import reproject, Resampling, calculate_default_transform
 from rasterio.transform import from_bounds
 
 from fetchez.spatial import Region
@@ -164,9 +165,132 @@ class SRSParser:
 
         self.tc["want_vertical"] = has_src_vert or has_dst_vert
 
-    def set_vertical_transform(self) -> None:
-        """Generates the vertical shift grid using VerticalTransform."""
+    @staticmethod
+    def _vertical_grid_region_crs(region):
+        """Return the CRS of the supplied processing region.
 
+        Fetchez/Globato processing regions are geographic and commonly arrive
+        without an explicit ``Region.srs`` label. Treat an unlabeled processing
+        region as WGS84 rather than relabeling its longitude/latitude numbers as
+        the source file CRS. Callers using a non-WGS84 region must label it.
+        """
+        region_srs = getattr(region, "srs", None)
+        if isinstance(region_srs, (list, tuple)) and len(region_srs) == 1:
+            region_srs = region_srs[0]
+        return CRS.from_user_input(region_srs or "EPSG:4326")
+
+    @classmethod
+    def _vertical_grid_wgs84_region(cls, region):
+        """Return a copy of ``region`` expressed in WGS84."""
+        working = region.copy()
+        region_crs = cls._vertical_grid_region_crs(working)
+        working.srs = region_crs
+        if region_crs != CRS.from_epsg(4326):
+            working.warp("EPSG:4326")
+        return working
+
+    @staticmethod
+    def _align_vertical_grid_to_source_crs(shift_arr, vt_region, source_crs):
+        """Return a shift grid whose pixel coordinates match source x/y coordinates.
+
+        VerticalTransform evaluates its models on a WGS84 grid. Point-stream
+        consumers query the cached result before horizontal reprojection, so the
+        stored grid must be expressed in the exact source horizontal CRS.
+        """
+        wgs84 = CRS.from_epsg(4326)
+        source_crs = CRS.from_user_input(source_crs)
+        rows, cols = shift_arr.shape
+        wgs_transform = from_bounds(
+            vt_region.xmin,
+            vt_region.ymin,
+            vt_region.xmax,
+            vt_region.ymax,
+            cols,
+            rows,
+        )
+        source_data = np.asarray(shift_arr, dtype=np.float32)
+        if source_crs == wgs84:
+            return source_data, wgs_transform, source_crs
+
+        native_transform, native_width, native_height = calculate_default_transform(
+            wgs84,
+            source_crs,
+            cols,
+            rows,
+            left=vt_region.xmin,
+            bottom=vt_region.ymin,
+            right=vt_region.xmax,
+            top=vt_region.ymax,
+        )
+        if native_width < 1 or native_height < 1:
+            raise RuntimeError(
+                "Could not derive a valid source-CRS vertical-grid shape for "
+                f"{source_crs.to_string()}"
+            )
+
+        native_shift_array = np.full(
+            (native_height, native_width), np.nan, dtype=np.float32
+        )
+        reproject(
+            source=source_data,
+            destination=native_shift_array,
+            src_transform=wgs_transform,
+            src_crs=wgs84,
+            src_nodata=np.nan,
+            dst_transform=native_transform,
+            dst_crs=source_crs,
+            dst_nodata=np.nan,
+            resampling=Resampling.bilinear,
+            init_dest_nodata=True,
+        )
+        if not np.isfinite(native_shift_array).any():
+            raise RuntimeError(
+                "Vertical-grid reprojection produced no finite source-CRS coverage for "
+                f"{source_crs.to_string()}"
+            )
+        return native_shift_array, native_transform, source_crs
+
+    @staticmethod
+    def _vertical_grid_crs_cache_key(crs):
+        """Return a collision-resistant canonical CRS identity for cache keys."""
+        if isinstance(crs, (list, tuple)) and len(crs) == 1:
+            crs = crs[0]
+        return CRS.from_user_input(crs).to_wkt()
+
+    def _vertical_grid_cache_token(self, proc_region, s_ident, d_ident):
+        """Return a stable token for one natively aligned vertical-shift grid."""
+        src_crs_key = self._vertical_grid_crs_cache_key(self.tc["src_crs"])
+        # Fetchez/Globato processing regions are geographic and may be unlabeled.
+        # Do not relabel longitude/latitude bounds as a projected source CRS.
+        effective_region_srs = getattr(proc_region, "srs", None) or "EPSG:4326"
+        region_crs_key = self._vertical_grid_crs_cache_key(effective_region_srs)
+        parts = [
+            "vertical-grid-cache-v3",
+            src_crs_key,
+            region_crs_key,
+            str(s_ident),
+            str(d_ident),
+            str(self.tc["src_geoid"] or ""),
+            str(self.tc["dst_geoid"] or ""),
+            format(float(proc_region.xmin), ".17g"),
+            format(float(proc_region.xmax), ".17g"),
+            format(float(proc_region.ymin), ".17g"),
+            format(float(proc_region.ymax), ".17g"),
+        ]
+        payload = "\x1f".join(parts).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()[:16]
+
+    def _vertical_grid_name(self, proc_region, s_ident, d_ident):
+        """Return the cache filename for one generated vertical-shift grid."""
+        s_name = str(s_ident).replace(":", "_").replace(" ", "_").replace("/", "_")
+        d_name = str(d_ident).replace(":", "_").replace(" ", "_").replace("/", "_")
+        grid_token = self._vertical_grid_cache_token(proc_region, s_ident, d_ident)
+        return (
+            f"transformez_{s_name}_{d_name}_{proc_region.format('fn')}_{grid_token}.tif"
+        )
+
+    def set_vertical_transform(self) -> None:
+        """Generate a cached vertical-shift grid aligned to source query coordinates."""
         if not self.region or not self.tc["want_vertical"]:
             return
 
@@ -179,44 +303,31 @@ class SRSParser:
 
         s_ident = self.tc["src_vert_epsg"]
         d_ident = self.tc["dst_vert_epsg"]
-
         if not s_ident and self.tc["src_geoid"]:
             s_ident = 6319
         if not d_ident and self.tc["dst_geoid"]:
             d_ident = 6319
-
         if not s_ident or not d_ident:
             return
 
-        s_name = str(s_ident).replace(":", "_").replace(" ", "_").replace("/", "_")
-        d_name = str(d_ident).replace(":", "_").replace(" ", "_").replace("/", "_")
-        grid_name = f"transformez_{s_name}_{d_name}_{proc_region.format('fn')}.tif"
+        grid_name = self._vertical_grid_name(proc_region, s_ident, d_ident)
         self.tc["trans_fn"] = grid_name.replace("\\", "/")
 
         if not os.path.exists(self.tc["trans_fn"]):
             logger.info(
                 f"Generating vertical grid: {s_ident} -> {d_ident} : {self.tc['trans_fn']} :"
             )
-
             from .transform import VerticalTransform
 
-            # Determine Native WGS84 Region for Transformez
-            src_is_projected = self.tc["src_crs"].is_projected
-            if not proc_region.srs:
-                proc_region.srs = (self.tc["src_crs"],)
+            # Globato/Fetchez processing regions are geographic unless explicitly
+            # labeled otherwise. Convert that real region to WGS84 for the vertical
+            # model instead of relabeling lon/lat bounds as the source file CRS.
+            vt_region = self._vertical_grid_wgs84_region(proc_region)
 
-            if src_is_projected:
-                # Transform the native bounding box to WGS84 to query the shift models
-                vt_region = proc_region.copy()
-                vt_region.warp("EPSG:4326")
-            else:
-                vt_region = proc_region.copy()
-
-            # Generate grid resolution based on WGS84 bounds (approx 3 arc-seconds)
+            # Generate grid resolution based on WGS84 bounds (approx 3 arc-seconds).
             inc_deg = 3.0 / 3600.0
             vt_nx = max(10, int(vt_region.width / inc_deg))
             vt_ny = max(10, int(vt_region.height / inc_deg))
-
             vt = VerticalTransform(
                 vt_region,
                 nx=vt_nx,
@@ -228,49 +339,11 @@ class SRSParser:
                 cache_dir=self.cache_dir,
             )
             shift_arr, _ = vt._vertical_transform()
-
-            # Warp the Grid Back to the Source CRS
-            if src_is_projected:
-                logger.info(
-                    f"Warping shift grid to native input CRS ({self.tc['src_crs'].name})..."
+            shift_arr, grid_transform, grid_crs = (
+                self._align_vertical_grid_to_source_crs(
+                    shift_arr, vt_region, self.tc["src_crs"]
                 )
-                wgs_transform = from_bounds(
-                    vt_region.xmin,
-                    vt_region.ymin,
-                    vt_region.xmax,
-                    vt_region.ymax,
-                    vt_nx,
-                    vt_ny,
-                )
-
-                # Output grid dimensions for the native projection
-                out_nx = max(10, int(proc_region.width / (proc_region.width / vt_nx)))
-                out_ny = max(10, int(proc_region.height / (proc_region.height / vt_ny)))
-                native_transform = from_bounds(
-                    proc_region.xmin,
-                    proc_region.ymin,
-                    proc_region.xmax,
-                    proc_region.ymax,
-                    out_nx,
-                    out_ny,
-                )
-
-                native_shift_array = np.zeros((out_ny, out_nx), dtype=np.float32)
-
-                reproject(
-                    source=shift_arr,
-                    destination=native_shift_array,
-                    src_transform=wgs_transform,
-                    src_crs="EPSG:4326",
-                    dst_transform=native_transform,
-                    dst_crs=self.tc["src_crs"],
-                    resampling=Resampling.bilinear,
-                )
-                shift_arr = native_shift_array
-
-                # We artificially inject the native transform into proc_region to satisfy GridWriter
-                proc_region.transform = native_transform
-
+            )
             provenance = {
                 "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
                 "TIFFTAG_DATETIME": datetime.datetime.now().strftime(
@@ -282,13 +355,14 @@ class SRSParser:
                 "TRANSFORMEZ_GEOID_OUT": str(self.tc.get("dst_geoid", "None")),
                 "TRANSFORMEZ_NATIVE_CRS": str(self.tc["src_crs"].name),
             }
-            # Write the natively-aligned grid to disk!
             GridWriter.write(
                 self.tc["trans_fn"],
                 shift_arr,
                 proc_region,
-                crs=self.tc["src_crs"],
+                crs=grid_crs,
                 tags=provenance,
+                transform=grid_transform,
+                nodata=np.nan,
             )
 
         self.manual_vert_grid = self.tc["trans_fn"]

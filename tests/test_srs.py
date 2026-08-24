@@ -1,6 +1,8 @@
 # tests/test_srs.py
 
 from unittest.mock import patch, MagicMock
+
+import numpy as np
 from pyproj import Transformer
 
 from transformez.srs import SRSParser
@@ -48,7 +50,10 @@ def test_srs_component_generation(mock_vt_class, mock_writer):
 
     # Setup the mock VerticalTransform to return a dummy grid
     mock_vt_instance = MagicMock()
-    mock_vt_instance._vertical_transform.return_value = (True, True)  # Dummy return
+    mock_vt_instance._vertical_transform.return_value = (
+        np.full((10, 10), -0.25, dtype=np.float32),
+        None,
+    )  # Dummy return
     mock_vt_class.return_value = mock_vt_instance
 
     dummy_region = Region(-80.0, -79.0, 25.0, 26.0)
