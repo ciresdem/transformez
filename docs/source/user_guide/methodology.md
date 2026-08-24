@@ -1,8 +1,8 @@
 # 📐 Geodetic Methodology & Architecture
-To provide vertical transformations across varied geographic extents, `transformez` relies on a dynamic, rigorous architecture.
-The `transformez` engine computes optimal geodetic pathways on the fly.
+To provide vertical transformations across varied geographic extents, Transformez relies on a dynamic, rigorous architecture.
+The Transformez engine computes optimal geodetic pathways on the fly.
 
-Here is a look under the hood at how `transformez` handles dynamic vertical transformations.
+Here is a look under the hood at how Transformez handles dynamic vertical transformations.
 
 ```mermaid
 flowchart TD
@@ -40,7 +40,7 @@ flowchart TD
 | LAT        | MHHW     | WGS84    | Depends on location     |
 
 ## The Dynamic Hub-and-Spoke Model
-`transformez` routes complex, multi-step vertical conversions (e.g., moving from a local tidal datum directly to a global geoid) by using an autonomous **"Hub-and-Spoke"** system
+Transformez routes complex, multi-step vertical conversions (e.g., moving from a local tidal datum directly to a global geoid) by using an autonomous **"Hub-and-Spoke"** system
 
 * **Native Ellipsoid Hubs:** Every transformation is mathematically routed through a central geodetic frame (the "Hub").
 
@@ -53,7 +53,7 @@ A common point of confusion in vertical geodesy is the sign convention of shift 
 
 * **The Stick in the Bay:** Imagine standing in the water of a bay holding a measuring stick with a "zero" line marked as Mean Low Water. If you move your "zero" mark to a higher datum (e.g., moving from Mean Low Water up to Mean Higher High Water), the water level on your stick will read as a lower number.
 
-* **The Rule of Addition:** Because of this, shifting to a higher reference surface can require positive *or* negative shift values depending on location. `transformez` automatically handles these complex sign inversions internally so you don't have to overthink it. You always simply **ADD** the generated shift grid to your raster (i.e., `New_DEM = Old_DEM + Shift_Grid`). The grid's native positive and negative values automatically ensure the math reflects physical reality.
+* **The Rule of Addition:** Because of this, shifting to a higher reference surface can require positive *or* negative shift values depending on location. Transformez automatically handles these complex sign inversions internally so you don't have to overthink it. You always simply **ADD** the generated shift grid to your raster (i.e., `New_DEM = Old_DEM + Shift_Grid`). The grid's native positive and negative values automatically ensure the math reflects physical reality.
 
 * **Example:**
 
@@ -75,7 +75,7 @@ A common point of confusion in vertical geodesy is the sign convention of shift 
 ## Continuous Coastal Blending
 Official tidal models (like NOAA's VDatum) only provide data close to the coast. However, modern hydrodynamic modeling requires continuous grids that extend far into the deep ocean or miles inland.
 
-* **Offshore Extrapolation:** When a requested bounding box extends beyond native VDatum coverage, `transformez` automatically fetches global satellite altimetry (like DTU25 or FES2014) as a proxy.
+* **Offshore Extrapolation:** When a requested bounding box extends beyond native VDatum coverage, Transformez automatically fetches global satellite altimetry (like DTU25 or FES2014) as a proxy.
 
 * **Smart Blending:** To prevent harsh steps between the two models, the engine applies a dynamic spatial crossfade, isolating the Mean Dynamic Topography (MDT) and smoothly blending the VDatum boundary into the global satellite frame.
 
@@ -90,7 +90,7 @@ Since water piles up and moves around and tides push into shallow bays and narro
 ## Inland Tidal Decay
 Water levels (and their associated tidal datums) do not physically exist on dry land. However, coastal DEMs require inland datum extrapolation to allow storm surges to properly push water uphill during flood simulations.
 
-* **Voronoi Ridges:** To extrapolate tidal datums inland without introducing artificial slopes, `transformez` generates nearest-neighbor Voronoi ridges from the coastline.
+* **Voronoi Ridges:** To extrapolate tidal datums inland without introducing artificial slopes, Transformez generates nearest-neighbor Voronoi ridges from the coastline.
 
 * **Gaussian Blurring & Easing:** These ridges are then heavily blurred and crossfaded with the raw coastal data to ensure continuity (a smooth surface with no sharp corners) deep inland.
 
@@ -101,11 +101,11 @@ Water levels (and their associated tidal datums) do not physically exist on dry 
 > Hydrodynamic modelers (Tsunami, Storm Surge, Sea Level Rise) are an exception to this rule. To simulate a wave riding up the terrain, the mathematical offset between the geodetic frame and the tidal frame must be preserved infinitely inland. If you are running a hydrodynamic simulation, always pass `--decay-pixels 0` to disable the decay and generate a continuous extrapolation surface.
 
 ## Autonomous Self-Healing
-`transformez` is designed to survive infrastructure failures automatically:
+Transformez is designed to survive infrastructure failures automatically:
 
 * **Geoid Fallbacks:** If a requested geoid (like g2018) lacks physical coverage in a remote area (e.g., parts of Alaska), the engine automatically scans its registry and downgrades to the newest compatible model (like g2012b or geoid09) to keep the pipeline alive.
 
-* **Tectonic Fallbacks:** When querying the NGS HTDP (Horizontal Time-Dependent Positioning) engine for complex plate tectonic shifts, requests crossing certain temporal epochs can fail. `transformez` catches these failures and seamlessly falls back to a static datum shift at the target epoch.
+* **Tectonic Fallbacks:** When querying the NGS HTDP (Horizontal Time-Dependent Positioning) engine for complex plate tectonic shifts, requests crossing certain temporal epochs can fail. Transformez catches these failures and seamlessly falls back to a static datum shift at the target epoch.
 
 * **Failure Mode Examples:**
 
