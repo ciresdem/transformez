@@ -268,7 +268,10 @@ class SRSParser:
                 proc_region.transform = native_transform
 
             # Write the natively-aligned grid to disk!
-            GridWriter.write(self.tc["trans_fn"], shift_arr, proc_region)
+            # TODO: add provenance tags here
+            GridWriter.write(
+                self.tc["trans_fn"], shift_arr, proc_region, crs=self.tc["src_crs"]
+            )
 
         self.manual_vert_grid = self.tc["trans_fn"]
 
