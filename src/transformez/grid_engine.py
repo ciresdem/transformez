@@ -470,6 +470,7 @@ class GridWriter:
         filename: str,
         data: np.ndarray,
         region: Region | str,
+        crs: Any = "EPSG:4326",
         tags: Optional[Dict[str, str]] = None,
     ) -> str:
         """Write a vertical shift grid using Rasterio.
@@ -516,7 +517,7 @@ class GridWriter:
                 width=cols,
                 count=1,
                 dtype="float32",
-                crs="EPSG:4326",
+                crs=crs,
                 transform=transform,
                 compress="deflate",
                 tiled=True,
