@@ -31,12 +31,15 @@ import os
 import logging
 import numpy as np
 from typing import List, Union, Optional, Tuple
+import datetime
 
 from .transform import VerticalTransform
 from .definitions import Datums
 from .grid_engine import GridWriter, GridEngine
 from fetchez.spatial import parse_region, Region
 from fetchez import utils
+
+from transformez import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +208,15 @@ def generate_grid(
         return None
 
     if out_fn:
-        GridWriter.write(out_fn, shift_array, region_obj)
+        provenance = {
+            "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
+            "TIFFTAG_DATETIME": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
+            "TRANSFORMEZ_DATUM_IN": str(datum_in),
+            "TRANSFORMEZ_DATUM_OUT": str(datum_out),
+            "TRANSFORMEZ_DECAY_PIXELS": str(decay_pixels),
+        }
+
+        GridWriter.write(out_fn, shift_array, region_obj, tags=provenance)
         logger.info(f"Saved shift grid to {out_fn}")
 
     return shift_array
@@ -320,6 +331,14 @@ def transform_raster(
         logger.error("Failed to generate shift array for the raster bounds.")
         return None
 
+    provenance = {
+        "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
+        "TIFFTAG_DATETIME": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
+        "TRANSFORMEZ_DATUM_IN": str(datum_in),
+        "TRANSFORMEZ_DATUM_OUT": str(datum_out),
+        "TRANSFORMEZ_DECAY_PIXELS": str(decay_pixels),
+    }
+
     if is_projected:
         logger.debug("Streaming raster via windowed I/O...")
         wgs_transform = from_bounds(
@@ -339,6 +358,7 @@ def transform_raster(
             z_unit_out=z_unit_out,
             shift_transform=wgs_transform,
             shift_crs="EPSG:4326",
+            tags=provenance,
         )
     else:
         # If it's already in Geographic (EPSG:4326), just pass it standardly
@@ -348,6 +368,7 @@ def transform_raster(
             dst_dem=output_raster,
             z_unit_in=z_unit_in,
             z_unit_out=z_unit_out,
+            tags=provenance,
         )
 
     if save_shift and not is_projected:
@@ -365,6 +386,9 @@ def transform_raster(
             transform=native_transform,
             nodata=-9999.0,
         ) as dst:
+            if provenance:
+                dst.update_tags(**provenance)
+
             dst.write(shift_array, 1)
     elif save_shift and is_projected:
         logger.warning(

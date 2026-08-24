@@ -15,7 +15,7 @@ floating-point nodata leaks and spline ringing at data boundaries.
 
 import os
 import logging
-from typing import Optional, List, Any
+from typing import Optional, List, Dict, Any
 
 import numpy as np
 import rasterio
@@ -364,6 +364,7 @@ class GridEngine:
         z_unit_out: str = "m",
         shift_transform: Optional[Any] = None,
         shift_crs: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Apply a vertical shift array to a source DEM using memory-safe windowed I/O.
 
@@ -375,6 +376,7 @@ class GridEngine:
             z_unit_out: Output DEM Z units.
             shift_transform: Transform matrix for shift_array (if different from src_dem).
             shift_crs: CRS of shift_array (if different from src_dem).
+            tags: Metadata tags to apply to the transformed dem.
 
         Returns:
             True if successful, False otherwise.
@@ -397,6 +399,9 @@ class GridEngine:
                 profile.update(nodata=nodata)
 
                 with rasterio.open(dst_dem, "w", **profile) as dst:
+                    if tags:
+                        dst.update_tags(**tags)
+
                     for ji, window in dst.block_windows(1):
                         data_chunk = src.read(1, window=window).astype(np.float32)
                         if np.isnan(nodata):
@@ -465,6 +470,7 @@ class GridWriter:
         filename: str,
         data: np.ndarray,
         region: Region | str,
+        tags: Optional[Dict[str, str]] = None,
     ) -> str:
         """Write a vertical shift grid using Rasterio.
 
@@ -472,6 +478,7 @@ class GridWriter:
             filename: Output filepath.
             data: 2D array to write.
             region: Geographic region object with xmin, xmax, ymin, ymax.
+            tags: Metadata tags to apply to the output shift grid.
 
         Returns:
             Path to written file (always .tif extension).
@@ -515,6 +522,10 @@ class GridWriter:
                 tiled=True,
             ) as dst:
                 dst.write(data.astype("float32"), 1)
+
+                if tags:
+                    dst.update_tags(**tags)
+
             return filename
         except Exception:
             raise
