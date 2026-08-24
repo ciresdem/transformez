@@ -43,9 +43,12 @@ def cmd_exists(x: str) -> bool:
 def run_cmd(args: Union[str, List[str], Tuple[str, ...]]) -> Tuple[str, int]:
     """Standalone replacement for utils.run_cmd using subprocess.
 
-    Handles strings, lists, and tuples by tokenizing them
-    before execution.
+    Securely handles strings, lists, and single-item tuples by
+    tokenizing them before execution.
     """
+
+    if isinstance(args, (tuple, list)) and len(args) == 1 and isinstance(args[0], str):
+        args = args[0]
 
     if isinstance(args, str):
         cmd_list = shlex.split(args)
