@@ -75,11 +75,27 @@ class Vdatum:
     def vdatum_locate_jar(self):
         """Find the VDatum executable on the local system."""
 
+        cache_path = os.path.abspath(
+            os.path.join(os.getcwd(), "transformez_cache", "vdatum", "vdatum.jar")
+        )
+        if os.path.exists(cache_path):
+            self.jar = cache_path
+            return [cache_path]
+
+        import shutil
+
+        sys_path = shutil.which("vdatum.jar")
+        if sys_path:
+            self.jar = sys_path
+            return [sys_path]
+
+        logger.debug("Searching root filesystem for vdatum.jar...")
         results = []
         for root, dirs, files in os.walk("/"):
             if "vdatum.jar" in files:
                 results.append(os.path.abspath(os.path.join(root, "vdatum.jar")))
                 break
+
         if not results:
             return None
         else:
@@ -119,7 +135,9 @@ class Vdatum:
             )
 
             out, _ = utils.run_cmd(
-                f"java -Djava.awt.headless=false -jar {self.jar} {vdc}"  # , verbose=False
+                (
+                    f"java -Djava.awt.headless=false -jar {self.jar} {vdc}",
+                )  # , verbose=False
             )
             z = xyz[2]
             for i in out.split("\n"):
