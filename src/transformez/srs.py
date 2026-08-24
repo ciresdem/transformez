@@ -26,6 +26,9 @@ from fetchez.spatial import Region
 from .definitions import Datums
 from .grid_engine import GridWriter
 
+from transformez import __version__
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -269,7 +272,7 @@ class SRSParser:
                 proc_region.transform = native_transform
 
             provenance = {
-                "TIFFTAG_SOFTWARE": "Transformez SRS Pipeline",
+                "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
                 "TIFFTAG_DATETIME": datetime.datetime.now().strftime(
                     "%Y:%m:%d %H:%M:%S"
                 ),
