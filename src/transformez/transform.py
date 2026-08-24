@@ -494,7 +494,7 @@ class VerticalTransform:
             f"Geoid '{target_geoid}' and all fallbacks lack coverage or failed to download."
         )
 
-    def _fetch_ocean_mask(self):
+    def _fetch_ocean_mask(self) -> Optional[np.ndarray]:
         """Fetch NASA Dist2Coast raster and threshold to boolean land mask.
 
         Returns:
@@ -797,12 +797,6 @@ class VerticalTransform:
 
             if region_tag == "usa":
                 s, d = self._get_vdatum_chain(datum_name, geoid)
-                if s is None:
-                    native_epsg = WGS84_EPSG
-                    proxy_name = Datums.get_global_proxy(datum_name)
-                    if proxy_name:
-                        s, d = self._get_global_chain(proxy_name, model="fes2014")
-                        # d = f"Global({proxy_name}) [Proxy] -> WGS84"
                 chain_shift, chain_desc = s, d
 
             elif region_tag == "global":
