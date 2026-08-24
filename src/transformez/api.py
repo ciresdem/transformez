@@ -292,7 +292,7 @@ def transform_raster(
     if z_unit_in != "m" or z_unit_out != "m":
         logger.info(f"Auto-detected Unit Conversion: {z_unit_in} -> {z_unit_out}")
 
-    if not epsg_in or not epsg_out:
+    if epsg_in is None or epsg_out is None:
         logger.error(f"Invalid datum specified: {datum_in} -> {datum_out}")
         return None
 
