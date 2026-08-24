@@ -590,7 +590,7 @@ class VerticalTransform:
             if ocean_mask is not None:
                 # Carve out the VDatum rivers so they aren't treated as land!
                 valid_vdatum = ~np.isnan(hydro_shift)
-                ocean_mask[valid_vdatum] = False
+                ocean_mask[valid_vdatum] = True
 
             if self.use_stations:
                 logger.info("    [Override] Forcing Tide Station RBF interpolation...")
