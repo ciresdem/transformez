@@ -14,6 +14,7 @@ and a self generated vertical transformation grid.
 
 import os
 import logging
+import datetime
 from typing import Any, Dict, Optional, Tuple
 
 from pyproj import CRS, Transformer
@@ -267,10 +268,24 @@ class SRSParser:
                 # We artificially inject the native transform into proc_region to satisfy GridWriter
                 proc_region.transform = native_transform
 
+            provenance = {
+                "TIFFTAG_SOFTWARE": "Transformez SRS Pipeline",
+                "TIFFTAG_DATETIME": datetime.datetime.now().strftime(
+                    "%Y:%m:%d %H:%M:%S"
+                ),
+                "TRANSFORMEZ_DATUM_IN": str(s_ident),
+                "TRANSFORMEZ_DATUM_OUT": str(d_ident),
+                "TRANSFORMEZ_GEOID_IN": str(self.tc.get("src_geoid", "None")),
+                "TRANSFORMEZ_GEOID_OUT": str(self.tc.get("dst_geoid", "None")),
+                "TRANSFORMEZ_NATIVE_CRS": str(self.tc["src_crs"].name),
+            }
             # Write the natively-aligned grid to disk!
-            # TODO: add provenance tags here
             GridWriter.write(
-                self.tc["trans_fn"], shift_arr, proc_region, crs=self.tc["src_crs"]
+                self.tc["trans_fn"],
+                shift_arr,
+                proc_region,
+                crs=self.tc["src_crs"],
+                tags=provenance,
             )
 
         self.manual_vert_grid = self.tc["trans_fn"]
