@@ -104,6 +104,10 @@ class HTDP:
             logger.warning("HTDP missing. Returning zero shift.")
             return np.zeros((ny, nx))
 
+        # Create a coarse (max 50x50) grid for htpd calculations.
+        coarse_nx = min(nx, 50)
+        coarse_ny = min(ny, 50)
+
         # Look up HTDP numeric IDs (e.g., NAD83=1, WGS84=10)
         # transform.py passes ints (EPSGs), we need HTDP internal IDs
         def get_id(epsg: int) -> int:
@@ -130,8 +134,8 @@ class HTDP:
             ctl_fn = os.path.join(tmpdir, "htdp.inp")
 
             # The output Z will be the shift.
-            lons = np.linspace(region.xmin, region.xmax, nx)
-            lats = np.linspace(region.ymin, region.ymax, ny)
+            lons = np.linspace(region.xmin, region.xmax, coarse_nx)
+            lats = np.linspace(region.ymin, region.ymax, coarse_ny)
 
             # Write input file
             with open(in_fn, "w") as f:
@@ -160,8 +164,20 @@ class HTDP:
                 logger.error("HTDP produced no output.")
                 return np.zeros((ny, nx))
 
-            grid = self._read_grid(out_fn, (ny, nx))
-            return grid
+            coarse_grid = self._read_grid(out_fn, (coarse_ny, coarse_nx))
+
+            # If we downsampled, stretch the grid back to the requested size
+            if coarse_nx != nx or coarse_ny != ny:
+                from scipy.ndimage import zoom
+
+                zoom_y = ny / coarse_ny
+                zoom_x = nx / coarse_nx
+                final_grid = zoom(coarse_grid, (zoom_y, zoom_x), order=1)  # bilinear
+                return final_grid
+
+            return coarse_grid
+            # grid = self._read_grid(out_fn, (ny, nx))
+            # return grid
 
     def _read_grid(self, filename: str, shape: Tuple[int, int]) -> np.ndarray:
         """Parse HTDP output, mapping PNT_x_y tags to grid indices.
