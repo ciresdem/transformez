@@ -328,8 +328,9 @@ class GridEngine:
         raw_extrapolation = out_data[tuple(indices)]
 
         # Dynamic blur sigma: scale with decay_pixels to maintain proportion
+        # Cap at 50 to prevent OOM
         # This ensures the smoothing transition zone aligns with the decay zone
-        blur_sigma = max(10, decay_pixels / 5)
+        blur_sigma = min(50, max(10, decay_pixels / 5))
         blurred_extrapolation = gaussian_filter(raw_extrapolation, sigma=blur_sigma)
 
         # Crossfade: raw near coast, blurred deep inland
