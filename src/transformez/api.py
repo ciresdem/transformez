@@ -179,7 +179,7 @@ def generate_grid(
     epsg_in, geoid_in = _parse_datum(datum_in)
     epsg_out, geoid_out = _parse_datum(datum_out)
 
-    if epsg_in is not None or epsg_out is not None:
+    if epsg_in is None or epsg_out is None:
         raise ValueError(f"Invalid datum specified: {datum_in} -> {datum_out}")
 
     vt = VerticalTransform(
