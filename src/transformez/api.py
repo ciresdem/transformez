@@ -449,8 +449,8 @@ class PointTransformer:
 
         # --- Vertical Transformation ---
         if self.raster_query:
-            q_x = [x] if is_scalar else x
-            q_y = [y] if is_scalar else y
+            q_x = np.array([x]) if is_scalar else np.array(x)
+            q_y = np.array([y]) if is_scalar else np.array(y)
 
             shift_meters = self.raster_query.query(q_x, q_y)
 
