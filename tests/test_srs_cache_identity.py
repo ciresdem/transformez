@@ -69,12 +69,10 @@ def test_vertical_grid_name_canonicalizes_equivalent_region_crs_labels():
     ) == parser._vertical_grid_name(region_b, 5866, 5703)
 
 
-def test_vertical_grid_name_treats_missing_region_crs_as_wgs84():
-    # Fetchez/Globato processing regions are geographic and often unlabeled.
-    # Missing Region.srs therefore means WGS84 for generated-grid identity.
+def test_vertical_grid_name_treats_missing_region_crs_as_source_crs():
     parser = _parser("EPSG:32610")
-    region_a = _Region(-124.10, -124.00, 44.50, 44.64, srs=None)
-    region_b = _Region(-124.10, -124.00, 44.50, 44.64, srs=(CRS.from_epsg(4326),))
+    region_a = _Region(400000, 410000, 4930000, 4940000, srs=None)
+    region_b = _Region(400000, 410000, 4930000, 4940000, srs=(CRS.from_epsg(32610),))
     assert parser._vertical_grid_name(
         region_a, 5866, 5703
     ) == parser._vertical_grid_name(region_b, 5866, 5703)

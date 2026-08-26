@@ -165,29 +165,21 @@ class SRSParser:
 
         self.tc["want_vertical"] = has_src_vert or has_dst_vert
 
-    @staticmethod
-    def _vertical_grid_region_crs(region):
-        """Return the CRS of the supplied processing region.
-
-        Fetchez/Globato processing regions are geographic and commonly arrive
-        without an explicit ``Region.srs`` label. Treat an unlabeled processing
-        region as WGS84 rather than relabeling its longitude/latitude numbers as
-        the source file CRS. Callers using a non-WGS84 region must label it.
-        """
+    def _vertical_grid_region_crs(self, region):
+        """Return the CRS of the supplied processing region."""
         region_srs = getattr(region, "srs", None)
         if isinstance(region_srs, (list, tuple)) and len(region_srs) == 1:
             region_srs = region_srs[0]
-        return CRS.from_user_input(region_srs or "EPSG:4326")
+        return CRS.from_user_input(region_srs or self.tc["src_crs"])
 
-    @classmethod
-    def _vertical_grid_wgs84_region(cls, region):
+    def _vertical_grid_wgs84_region(self, region):
         """Return a copy of ``region`` expressed in WGS84."""
-        working = region.copy()
-        region_crs = cls._vertical_grid_region_crs(working)
-        working.srs = region_crs
+        working_region = region.copy()
+        region_crs = self._vertical_grid_region_crs(working_region)
+        working_region.srs = region_crs
         if region_crs != CRS.from_epsg(4326):
-            working.warp("EPSG:4326")
-        return working
+            working_region.warp("EPSG:4326")
+        return working_region
 
     @staticmethod
     def _align_vertical_grid_to_source_crs(shift_arr, vt_region, source_crs):
@@ -260,10 +252,8 @@ class SRSParser:
     def _vertical_grid_cache_token(self, proc_region, s_ident, d_ident):
         """Return a stable token for one natively aligned vertical-shift grid."""
         src_crs_key = self._vertical_grid_crs_cache_key(self.tc["src_crs"])
-        # Fetchez/Globato processing regions are geographic and may be unlabeled.
-        # Do not relabel longitude/latitude bounds as a projected source CRS.
-        effective_region_srs = getattr(proc_region, "srs", None) or "EPSG:4326"
-        region_crs_key = self._vertical_grid_crs_cache_key(effective_region_srs)
+        effective_region_crs = self._vertical_grid_region_crs(proc_region)
+        region_crs_key = self._vertical_grid_crs_cache_key(effective_region_crs)
         parts = [
             "vertical-grid-cache-v3",
             src_crs_key,
@@ -319,9 +309,7 @@ class SRSParser:
             )
             from .transform import VerticalTransform
 
-            # Globato/Fetchez processing regions are geographic unless explicitly
-            # labeled otherwise. Convert that real region to WGS84 for the vertical
-            # model instead of relabeling lon/lat bounds as the source file CRS.
+            # VerticalTransform evaluates its models in WGS84.
             vt_region = self._vertical_grid_wgs84_region(proc_region)
 
             # Generate grid resolution based on WGS84 bounds (approx 3 arc-seconds).

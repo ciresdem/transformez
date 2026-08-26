@@ -22,9 +22,19 @@ def _constant_shift(value=-0.25):
     return np.full((48, 64), value, dtype=np.float32)
 
 
-def test_unlabeled_processing_region_defaults_to_wgs84_not_source_crs():
+def test_unlabeled_processing_region_defaults_to_source_crs():
+    parser = SRSParser.__new__(SRSParser)
+    parser.tc = {"src_crs": CRS.from_epsg(32610)}
     region = _Region()
-    assert SRSParser._vertical_grid_region_crs(region) == CRS.from_epsg(4326)
+    assert parser._vertical_grid_region_crs(region) == CRS.from_epsg(32610)
+
+
+def test_labeled_processing_region_uses_region_crs():
+    parser = SRSParser.__new__(SRSParser)
+    parser.tc = {"src_crs": CRS.from_epsg(32610)}
+    region = _Region()
+    region.srs = CRS.from_epsg(4269)
+    assert parser._vertical_grid_region_crs(region) == CRS.from_epsg(4269)
 
 
 def test_projected_source_grid_is_queryable_in_projected_coordinates(tmp_path):
@@ -105,8 +115,8 @@ def test_grid_writer_preserves_explicit_transform_crs_and_existing_tags_api(tmp_
         object(),
         CRS.from_epsg(32610),
         {"datum_in": "5866", "datum_out": "5703"},
-        transform=transform,
-        nodata=np.nan,
+        transform,
+        np.nan,
     )
     with rasterio.open(path) as src:
         assert src.crs.to_epsg() == 32610

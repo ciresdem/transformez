@@ -473,15 +473,22 @@ class GridWriter:
         region: Region | str,
         crs: Any = "EPSG:4326",
         tags: Optional[Dict[str, str]] = None,
-        *,
         transform: Optional[Any] = None,
         nodata: Optional[float] = None,
     ) -> str:
-        """Write a vertical shift grid using explicit georeferencing when supplied.
+        """Write a grid to a GeoTIFF.
 
-        ``region`` remains the backward-compatible source of geographic bounds when
-        ``transform`` is omitted. Source-aligned vertical grids pass both ``crs`` and
-        ``transform`` explicitly so their on-disk coordinates match query coordinates.
+        Args:
+            filename: Output grid filename.
+            data: Two-dimensional array to write.
+            region: Region used to derive georeferencing when ``transform`` is omitted.
+            crs: Coordinate reference system for the output grid.
+            tags: Optional metadata tags to write.
+            transform: Optional explicit raster transform.
+            nodata: Optional nodata value.
+
+        Returns:
+            Path to the written GeoTIFF.
         """
         dirname = os.path.dirname(filename)
         if dirname and not os.path.exists(dirname):
