@@ -473,64 +473,63 @@ class GridWriter:
         region: Region | str,
         crs: Any = "EPSG:4326",
         tags: Optional[Dict[str, str]] = None,
+        transform: Optional[Any] = None,
+        nodata: Optional[float] = None,
     ) -> str:
-        """Write a vertical shift grid using Rasterio.
+        """Write a grid to a GeoTIFF.
 
         Args:
-            filename: Output filepath.
-            data: 2D array to write.
-            region: Geographic region object with xmin, xmax, ymin, ymax.
-            tags: Metadata tags to apply to the output shift grid.
+            filename: Output grid filename.
+            data: Two-dimensional array to write.
+            region: Region used to derive georeferencing when ``transform`` is omitted.
+            crs: Coordinate reference system for the output grid.
+            tags: Optional metadata tags to write.
+            transform: Optional explicit raster transform.
+            nodata: Optional nodata value.
 
         Returns:
-            Path to written file (always .tif extension).
+            Path to the written GeoTIFF.
         """
-
         dirname = os.path.dirname(filename)
         if dirname and not os.path.exists(dirname):
             os.makedirs(dirname)
 
         if not filename.endswith(".tif"):
             filename = os.path.splitext(filename)[0] + ".tif"
-
         rows, cols = data.shape
-        if isinstance(region, str):
-            regions = parse_region(region)
-            if not regions:
+        if transform is None:
+            if isinstance(region, str):
+                regions = parse_region(region)
+                if not regions:
+                    raise ValueError(f"Could not parse region: {region}")
+                region = regions[0]
+            if isinstance(region, Region):
+                xmin, xmax, ymin, ymax = region
+            else:
                 raise ValueError(f"Could not parse region: {region}")
-            region = regions[0]
+            res_x = (xmax - xmin) / cols
+            res_y = (ymax - ymin) / rows
+            transform = rasterio.transform.from_origin(xmin, ymax, res_x, res_y)
 
-        if isinstance(region, Region):
-            xmin, xmax, ymin, ymax = region
-        else:
-            raise ValueError(f"Could not parse region: {region}")
-
-        res_x = (xmax - xmin) / cols
-        res_y = (ymax - ymin) / rows
-        transform = rasterio.transform.from_origin(xmin, ymax, res_x, res_y)
-
-        try:
-            with rasterio.open(
-                filename,
-                "w",
-                driver="GTiff",
-                height=rows,
-                width=cols,
-                count=1,
-                dtype="float32",
-                crs=crs,
-                transform=transform,
-                compress="deflate",
-                tiled=True,
-            ) as dst:
-                dst.write(data.astype("float32"), 1)
-
-                if tags:
-                    dst.update_tags(**tags)
-
-            return filename
-        except Exception:
-            raise
+        raster_crs = crs.to_wkt() if hasattr(crs, "to_wkt") else crs
+        with rasterio.open(
+            filename,
+            "w",
+            driver="GTiff",
+            height=rows,
+            width=cols,
+            count=1,
+            dtype="float32",
+            crs=raster_crs,
+            transform=transform,
+            nodata=nodata,
+            compress="deflate",
+            tiled=True,
+        ) as dst:
+            dst.write(data.astype("float32"), 1)
+            if tags:
+                dst.update_tags(**tags)
+        return filename
 
 
 def calculate_psmsl_msl(csv_path: str) -> float:
