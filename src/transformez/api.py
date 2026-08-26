@@ -30,12 +30,15 @@ Usage::
 import os
 import logging
 import numpy as np
-from typing import List, Union, Optional, Tuple
+from typing import List, Union, Optional, Tuple, Any
 import datetime
 
 from .transform import VerticalTransform
 from .definitions import Datums
 from .grid_engine import GridWriter, GridEngine
+from .srs import SRSParser
+from .utils import RasterQuery
+
 from fetchez.spatial import parse_region, Region
 from fetchez import utils
 
@@ -396,6 +399,75 @@ def transform_raster(
         )
 
     return output_raster if success else None
+
+
+class PointTransformer:
+    """Unified API for transforming spatial coordinates (X, Y, Z).
+
+    Handles horizontal reprojection, vertical datum shifts via cached grids,
+    and Z-unit scaling (e.g., feet to meters) internally.
+    """
+
+    def __init__(
+        self,
+        src_srs: str,
+        dst_srs: str,
+        region: Any,
+        z_unit_in: str = "m",
+        z_unit_out: str = "m",
+        cache_dir: str = ".",
+    ):
+        parser = SRSParser(src_srs, dst_srs, region=region, cache_dir=cache_dir)
+        self.horz_transformer, self.grid_path = parser.get_components()
+
+        self.raster_query = RasterQuery(self.grid_path) if self.grid_path else None
+
+        self.factor_in = Datums.get_unit_factor(z_unit_in)
+        self.factor_out = Datums.get_unit_factor(z_unit_out)
+
+    def transform(
+        self,
+        x: Union[float, np.ndarray],
+        y: Union[float, np.ndarray],
+        z: Union[float, np.ndarray],
+    ) -> Tuple[
+        Union[float, np.ndarray], Union[float, np.ndarray], Union[float, np.ndarray]
+    ]:
+        """Transforms coordinates horizontally and vertically.
+        Accepts and returns either single scalar floats or NumPy arrays.
+
+        Args:
+            x: float or array of x value(s)
+            y: float or array of y value(s)
+            z: float or array of z value(s)
+
+        Returns:
+            Tuple of transformed x, y and z floats or arrays.
+        """
+
+        is_scalar = np.isscalar(x)
+
+        # --- Vertical Transformation ---
+        if self.raster_query:
+            q_x = [x] if is_scalar else x
+            q_y = [y] if is_scalar else y
+
+            shift_meters = self.raster_query.query(q_x, q_y)
+
+            z_meters = (np.array(z) * self.factor_in) + shift_meters
+            z_out = z_meters / self.factor_out
+
+            if is_scalar:
+                z_out = float(z_out[0])
+        else:
+            z_out = (np.array(z) * self.factor_in) / self.factor_out
+            if is_scalar:
+                z_out = float(z_out)
+
+        # --- Horizontal Transformation ---
+        out_x, out_y = self.horz_transformer.transform(x, y)
+
+        return out_x, out_y, z_out
 
 
 def prefetch_region(
