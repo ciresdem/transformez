@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- PointTransformer api class/functionality to be able to transform point clouds directly.
 - Comprehensive validation suite (`tests/validation/`) comparing Transformez output against NOAA CO-OPS tide gauges, the VDatum Java CLI, international FES2014 altimetry, and NGS HTDP tectonics.
 - Automated Markdown report generation for validation results.
 - Pytest configuration for CI/CD integration with `slow` and `accuracy` markers.
