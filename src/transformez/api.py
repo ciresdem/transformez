@@ -316,8 +316,8 @@ def transform_raster(
 
     vt = VerticalTransform(
         region=region_obj,
-        nx=nx,
-        ny=ny,
+        nx=vt_nx,
+        ny=vt_ny,
         epsg_in=epsg_in,
         epsg_out=epsg_out,
         geoid_in=geoid_in,
