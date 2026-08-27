@@ -622,7 +622,7 @@ class GridGen:
         if not isinstance(region, Region):
             raise ValueError(f"Could not parse region: {region}")
 
-        tides_fetcher = Tides(src_region=region.to_list(), mode="search")
+        tides_fetcher = Tides(src_region=region, mode="search")
         tides_fetcher.run()
 
         if not tides_fetcher.results:
