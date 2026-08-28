@@ -102,7 +102,7 @@ def transformez_cli(verbose: bool, quiet: bool) -> None:
     "extrapolate_inland",
     is_flag=True,
     help=(
-        "Extrapolate tidal shifts inland without attenuation. "
+        "Extrapolate tidal shifts inland without decay. "
         "Use with caution; tidal transformations may be applied far inland."
     ),
 )
@@ -260,7 +260,7 @@ def transform_run(
     "extrapolate_inland",
     is_flag=True,
     help=(
-        "Extrapolate tidal shifts inland without attenuation. "
+        "Extrapolate tidal shifts inland without decay. "
         "Use with caution; tidal transformations may be applied far inland."
     ),
 )
