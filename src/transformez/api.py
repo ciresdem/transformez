@@ -142,6 +142,10 @@ def generate_grid(
     epoch_in: str = "2010.0",
     epoch_out: str = "2010.0",
     decay_pixels: int = 100,
+    decay_distance_m: Optional[float] = None,
+    buffer_distance_m: Optional[float] = None,
+    max_vdatum_extension_m: Optional[float] = None,
+    extrapolate_inland: bool = False,
     out_fn: Optional[str] = None,
     cache_dir: Optional[str] = None,
     use_stations: bool = False,
@@ -156,7 +160,15 @@ def generate_grid(
         datum_out: Target datum (e.g., '4979', '6319').
         epoch_in: Source epoch (e.g., '2010.0').
         epoch_out: Target epoch (e.g., '2010.0').
-        decay_pixels: Pixels for inland extrapolation decay.
+        decay_pixels: Legacy pixel-based inland decay distance.
+        decay_distance_m: Inland decay distance in meters. When set,
+            this takes precedence over ``decay_pixels``.
+        buffer_distance_m: Distance inland, in meters, to retain the full coastal
+            shift before inland decay begins.
+        max_vdatum_extension_m: Optional maximum inland distance where VDatum
+            coverage may extend the effective water domain.
+        extrapolate_inland: No decay will be performed and the shift values
+             will be extrapolated for the entire region.
         out_fn: If provided, saves the grid to this file (.tif or .gtx).
         cache_dir: Path to store downloaded grids.
         use_stations: Force RBF interpolation using live tide stations.
@@ -188,6 +200,15 @@ def generate_grid(
     if epsg_in is None or epsg_out is None:
         raise ValueError(f"Invalid datum specified: {datum_in} -> {datum_out}")
 
+    if decay_distance_m is not None and decay_distance_m < 0:
+        raise ValueError("decay_distance_m must be >= 0")
+
+    if buffer_distance_m is not None and buffer_distance_m < 0:
+        raise ValueError("buffer_distance_m must be >= 0")
+
+    if max_vdatum_extension_m is not None and max_vdatum_extension_m < 0:
+        raise ValueError("max_vdatum_extension_m must be >= 0")
+
     vt = VerticalTransform(
         region=region_obj,
         nx=nx,
@@ -199,11 +220,14 @@ def generate_grid(
         epoch_in=epoch_in,
         epoch_out=epoch_out,
         decay_pixels=decay_pixels,
+        decay_distance_m=decay_distance_m,
+        buffer_distance_m=buffer_distance_m,
+        max_vdatum_extension_m=max_vdatum_extension_m,
+        extrapolate_inland=extrapolate_inland,
         cache_dir=cache_dir,
         use_stations=use_stations,
         verbose=verbose,
     )
-
     shift_array, _ = vt._vertical_transform()
 
     if shift_array is None:
@@ -216,7 +240,13 @@ def generate_grid(
             "TIFFTAG_DATETIME": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
             "TRANSFORMEZ_DATUM_IN": str(datum_in),
             "TRANSFORMEZ_DATUM_OUT": str(datum_out),
+            "TRANSFORMEZ_DECAY_MODE": (
+                "physical" if decay_distance_m is not None else "pixels"
+            ),
             "TRANSFORMEZ_DECAY_PIXELS": str(decay_pixels),
+            "TRANSFORMEZ_DECAY_DISTANCE_M": str(decay_distance_m),
+            "TRANSFORMEZ_BUFFER_DISTANCE_M": str(buffer_distance_m),
+            "TRANSFORMEZ_MAX_VDATUM_EXTENSION_M": str(max_vdatum_extension_m),
         }
 
         GridWriter.write(out_fn, shift_array, region_obj, tags=provenance)
@@ -230,6 +260,10 @@ def transform_raster(
     datum_in: str,
     datum_out: str,
     decay_pixels: int = 100,
+    decay_distance_m: Optional[float] = None,
+    buffer_distance_m: Optional[float] = None,
+    max_vdatum_extension_m: Optional[float] = None,
+    extrapolate_inland: bool = False,
     output_raster: Optional[str] = None,
     cache_dir: Optional[str] = None,
     z_unit_in: str = "auto",
@@ -245,7 +279,15 @@ def transform_raster(
         datum_in: Source datum of the DEM.
         datum_out: Target datum for the output DEM.
         output_raster: Path to save the transformed DEM. Auto-named if None.
-        decay_pixels: Pixels for inland extrapolation decay.
+        decay_pixels: Legacy pixel-based inland decay distance.
+        decay_distance_m: Physical inland decay distance in meters. When set,
+            this takes precedence over ``decay_pixels``.
+        buffer_distance_m: Distance inland, in meters, to retain the full coastal
+            shift before physical decay begins.
+        max_vdatum_extension_m: Optional maximum inland distance where VDatum
+            coverage may extend the effective water domain.
+        extrapolate_inland: No decay will be performed and the shift values
+             will be extrapolated for the entire region.
         cache_dir: Path to store downloaded grids.
         z_unit_in: Input DEM z units ('auto', 'm', 'ft', 'us-ft').
         z_unit_out: Output DEM z units ('auto', 'm', 'ft', 'us-ft').
@@ -314,6 +356,15 @@ def transform_raster(
         base, ext = os.path.splitext(input_raster)
         output_raster = f"{base}_trans_{datum_out.replace(':', '_')}{ext}"
 
+    if decay_distance_m is not None and decay_distance_m < 0:
+        raise ValueError("decay_distance_m must be >= 0")
+
+    if buffer_distance_m is not None and buffer_distance_m < 0:
+        raise ValueError("buffer_distance_m must be >= 0")
+
+    if max_vdatum_extension_m is not None and max_vdatum_extension_m < 0:
+        raise ValueError("max_vdatum_extension_m must be >= 0")
+
     vt = VerticalTransform(
         region=region_obj,
         nx=vt_nx,
@@ -323,6 +374,10 @@ def transform_raster(
         geoid_in=geoid_in,
         geoid_out=geoid_out,
         decay_pixels=decay_pixels,
+        decay_distance_m=decay_distance_m,
+        buffer_distance_m=buffer_distance_m,
+        max_vdatum_extension_m=max_vdatum_extension_m,
+        extrapolate_inland=extrapolate_inland,
         cache_dir=cache_dir,
         use_stations=use_stations,
         verbose=verbose,
@@ -339,7 +394,13 @@ def transform_raster(
         "TIFFTAG_DATETIME": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
         "TRANSFORMEZ_DATUM_IN": str(datum_in),
         "TRANSFORMEZ_DATUM_OUT": str(datum_out),
+        "TRANSFORMEZ_DECAY_MODE": (
+            "physical" if decay_distance_m is not None else "pixels"
+        ),
         "TRANSFORMEZ_DECAY_PIXELS": str(decay_pixels),
+        "TRANSFORMEZ_DECAY_DISTANCE_M": str(decay_distance_m),
+        "TRANSFORMEZ_BUFFER_DISTANCE_M": str(buffer_distance_m),
+        "TRANSFORMEZ_MAX_VDATUM_EXTENSION_M": str(max_vdatum_extension_m),
     }
 
     if is_projected:
@@ -523,8 +584,8 @@ def prefetch_region(
             )
 
             # Dist2Coast landmask
-            logger.info(" -> [1/5] Fetching Dist2Coast land mask...")
-            vt._fetch_ocean_mask()
+            logger.info(" -> [1/5] Fetching Dist2Coast signed-distance grid...")
+            vt._fetch_dist2coast_m()
 
             # All Registered Geoids
             logger.info(" -> [2/5] Fetching Geoid grids...")
