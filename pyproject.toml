@@ -119,8 +119,12 @@ follow_untyped_imports = false
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
+addopts = "-m 'not validation'"
 markers = [
-    "health: marks tests that require live network access to external APIs (run with '-m health')"
+    "health: tests requiring live network access to external APIs",
+    "validation: scientific validation against external reference systems",
+    "slow: tests that are too expensive for the normal unit-test suite",
+    "vdatum: tests requiring the locally installed NOAA VDatum Java engine",
 ]
 filterwarnings = [
     "ignore::pydantic.warnings.PydanticDeprecatedSince20",
