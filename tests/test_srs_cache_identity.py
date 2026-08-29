@@ -1,3 +1,5 @@
+# tests/test_srs_cache_identity.py
+
 from pyproj import CRS
 
 from transformez.srs import SRSParser
@@ -24,6 +26,10 @@ def _parser(src_crs, *, src_geoid=None, dst_geoid=None):
         "src_geoid": src_geoid,
         "dst_geoid": dst_geoid,
     }
+
+    parser.decay_distance_m = 5000.0
+    parser.buffer_distance_m = 250.0
+    parser.max_vdatum_extension_m = None
     return parser
 
 
