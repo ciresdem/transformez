@@ -56,8 +56,8 @@ transformez raster my_dem.tif -I mllw -O 5703
 **Integrate directly into your fetchez pipeline.**
 
 ```bash
-# Download GEBCO and shift EGM96 to WGS84 on the fly
-fetchez gebco ... --hook transformez:datum_in=5773,datum_out=4979
+# Generate vertical datum shift grids on-demand.
+fetchez transformez --src_datum mllw --dst_datum 4979 --increment 1s
 ```
 ---
 
