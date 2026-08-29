@@ -330,9 +330,11 @@ def transform_list() -> None:
         "  5. Inland Decay      : Coast-aware physical or pixel-based tidal decay."
     )
 
-    click.secho("\n💡 Pro-Tip:", fg="yellow", bold=True, nl=False)
     click.echo(
-        " Combine an EPSG and a specific Geoid using a colon (e.g., -O 5703:g2012b)\n"
+        """
+        Datum syntax:
+          Specify a geoid with DATUM:GEOID, e.g. 5703:g2012b.\n
+        """
     )
 
 
@@ -341,7 +343,7 @@ def transform_list() -> None:
     cls=FetchezMainGroup, name="htdp", fetchez_commands=["install", "run"]
 )
 def htdp_group() -> None:
-    """Manage and run NGS HTDP (Horizontal Time-Dependent Positioning)."""
+    """Manage the NGS HTDP transformation engine."""
 
     pass
 
@@ -353,7 +355,7 @@ def htdp_group() -> None:
     help="HTDP version to install (e.g., 3.3.0, 3.5.0, 3.6.0)",
 )
 def install_htdp(version: str) -> None:
-    """Downloads and compiles the HTDP executable from github."""
+    """Download and install the NGS HTDP executable."""
 
     from transformez.htdp import install_htdp_binary
 
@@ -363,7 +365,7 @@ def install_htdp(version: str) -> None:
 @htdp_group.command("run", cls=FetchezMainCommand)
 @click.option("--control", help="input control file, if omitted, run interactively")
 def run_htpd(control: Optional[Any]) -> None:
-    """Run HTDP from transformez"""
+    """Run the installed NGS HTDP executable."""
 
     from transformez.htdp import HTDP
 
@@ -372,17 +374,17 @@ def run_htpd(control: Optional[Any]) -> None:
 
 # --- VDATUM CLI GROUP ---
 @transformez_cli.group(
-    cls=FetchezMainGroup, name="vdatum", fetchez_commands=["install"]
+    cls=FetchezMainGroup, name="vdatum", fetchez_commands=["install", "run", "list"]
 )
 def vdatum_group() -> None:
-    """Manage and run the NOAA VDatum Java engine."""
+    """Manage the NOAA VDatum transformation engine."""
 
     pass
 
 
 @vdatum_group.command("install")
 def install_vdatum() -> None:
-    """Downloads and extracts the local VDatum software."""
+    """Download and install the NOAA VDatum software."""
 
     from transformez.vdatum import install_vdatum_jar
 
@@ -413,7 +415,7 @@ def run_vdatum_cli(
     out_unit: str,
     region: str,
 ) -> None:
-    """Process an XYZ text file through the local VDatum Java engine."""
+    """Transform an XYZ file using the local NOAA VDatum engine."""
 
     from transformez.vdatum import Vdatum
 
@@ -426,7 +428,7 @@ def run_vdatum_cli(
 
 @vdatum_group.command("list", cls=FetchezMainCommand)
 def vdatum_list() -> None:
-    """List the supported vdatum grids"""
+    """Show information reported by the installed VDatum engine."""
 
     from transformez.vdatum import Vdatum
 
@@ -451,7 +453,7 @@ def vdatum_list() -> None:
     "--all",
     "fetch_all",
     is_flag=True,
-    help="Fetch ALL available geoids, tidal models, and coastlines for this region.",
+    help="Download all available transformation datasets for the region.",
 )
 def transform_prefetch(
     region: str,
@@ -459,7 +461,7 @@ def transform_prefetch(
     output_datum: Optional[str],
     fetch_all: bool,
 ) -> None:
-    """Pre-download transformation grids and reference data for offline field use.
+    """Download transformation data for offline use.
 
     Examples:\n
       Prefetch a specific conversion : transformez prefetch -R loc:"Newport, OR" -I mllw -O 5703
@@ -481,7 +483,7 @@ def transform_prefetch(
 
     if result:
         click.secho(
-            f"Successfully pre-cached all assets for {region}. Ready for offline use!",
+            f"Offline cache populated for {region}.",
             fg="green",
             bold=True,
         )
