@@ -25,6 +25,9 @@ def _constant_shift(value=-0.25):
 def test_unlabeled_processing_region_defaults_to_source_crs():
     parser = SRSParser.__new__(SRSParser)
     parser.tc = {"src_crs": CRS.from_epsg(32610)}
+    parser.decay_distance_m = 5000.0
+    parser.buffer_distance_m = 250.0
+    parser.max_vdatum_extension_m = None
     region = _Region()
     assert parser._vertical_grid_region_crs(region) == CRS.from_epsg(32610)
 
@@ -32,6 +35,9 @@ def test_unlabeled_processing_region_defaults_to_source_crs():
 def test_labeled_processing_region_uses_region_crs():
     parser = SRSParser.__new__(SRSParser)
     parser.tc = {"src_crs": CRS.from_epsg(32610)}
+    parser.decay_distance_m = 5000.0
+    parser.buffer_distance_m = 250.0
+    parser.max_vdatum_extension_m = None
     region = _Region()
     region.srs = CRS.from_epsg(4269)
     assert parser._vertical_grid_region_crs(region) == CRS.from_epsg(4269)
@@ -161,6 +167,9 @@ def test_set_vertical_transform_preserves_generated_grid_provenance(monkeypatch)
         "dst_geoid": None,
         "src_crs": CRS.from_epsg(4326),
     }
+    parser.decay_distance_m = 5000.0
+    parser.buffer_distance_m = 250.0
+    parser.max_vdatum_extension_m = None
 
     class _VerticalTransform:
         def __init__(self, *args, **kwargs):

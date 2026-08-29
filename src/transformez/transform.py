@@ -20,9 +20,10 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import fetchez.api
+from fetchez.utils import float_or
 
 from .definitions import Datums
-from .grid_engine import GridEngine, GridGen, GridCorruptionError
+from .grid_engine import CoastalContext, GridEngine, GridGen, GridCorruptionError
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,10 @@ class VerticalTransform:
         epoch_in: str = "2010.0",
         epoch_out: str = "2010.0",
         decay_pixels: int = 100,
+        decay_distance_m: Optional[float] = None,
+        buffer_distance_m: Optional[float] = None,
+        extrapolate_inland: bool = False,
+        max_vdatum_extension_m: Optional[float] = None,
         cache_dir: Optional[str] = None,
         use_stations: bool = False,
         verbose: bool = True,
@@ -68,7 +73,16 @@ class VerticalTransform:
             geoid_out: Target geoid name (optional).
             epoch_in: Source epoch (decimal years).
             epoch_out: Target epoch (decimal years).
-            decay_pixels: Pixels for inland extrapolation decay.
+            decay_pixels: Legacy pixel-based inland decay distance.
+            decay_distance_m: Preferred inland decay distance in meters.
+                If None, legacy ``decay_pixels`` behavior is retained.
+            buffer_distance_m: No-decay buffer landward of the effective
+                shoreline when ``decay_distance_m`` is used.
+            extrapolate_inland: No decay will be performed and the shift values
+                will be extrapolated for the entire region.
+            max_vdatum_extension_m: Optional guard limiting how far inland VDatum
+                coverage may override the native Dist2Coast shoreline. None keeps
+                the current behavior of accepting all valid VDatum coverage.
             cache_dir: Path to store downloaded grids.
             use_stations: Force RBF interpolation using live tide stations.
             verbose: Enable debug logging.
@@ -95,6 +109,11 @@ class VerticalTransform:
         self.ref_out = Datums.get_frame_type(self.epsg_out)
 
         self.decay_pixels = decay_pixels
+        self.decay_distance_m = decay_distance_m
+        self.buffer_distance_m = float_or(buffer_distance_m, 0.0)
+        self.max_vdatum_extension_m = max_vdatum_extension_m
+        self.extrapolate_inland = extrapolate_inland
+
         self.use_stations = use_stations
 
         # --- HUB SELECTION ---
@@ -494,38 +513,125 @@ class VerticalTransform:
             f"Geoid '{target_geoid}' and all fallbacks lack coverage or failed to download."
         )
 
-    def _fetch_ocean_mask(self) -> Optional[np.ndarray]:
-        """Fetch NASA Dist2Coast raster and threshold to boolean land mask.
+    def _fetch_dist2coast_m(self) -> Optional[np.ndarray]:
+        """Fetch NASA Dist2Coast as a signed physical-distance field in meters.
 
-        Returns:
-            Boolean ocean mask, or None if fetch failed.
+        Positive values are treated as water and negative values as land.
+        The continuous field is bilinearly resampled because we want the
+        signed distance itself, not a categorical shoreline raster.
         """
 
-        logger.info("    [Coastline] Fetching Dist2Coast raster for inland masking...")
+        logger.info("    [Coastline] Fetching Dist2Coast signed distance field...")
 
         try:
+            import rasterio
+
             d2c_files = self.fetch_grid("dist2coast", variant="base")
             if not d2c_files:
                 logger.warning(
-                    "    [Coastline] Dist2Coast fetch failed. No land mask applied."
+                    "    [Coastline] Dist2Coast fetch failed. No coastal context applied."
                 )
                 return None
 
             nc_path = f"netcdf:{d2c_files[0]}:dist"
+            # Dist2Coast declares 0 as nodata even though zero is a meaningful
+            # coastline class (the source cell intersects the shoreline). Preserve
+            # those cells so build_coastal_context() can resolve the transition.
             d2c_grid = GridEngine.load_and_interpolate(
-                [nc_path], self.region, self.nx, self.ny, decay_pixels=0
+                [nc_path],
+                self.region,
+                self.nx,
+                self.ny,
+                decay_pixels=0,
+                preserve_zero=True,
             )
 
-            ocean_mask = d2c_grid > 0
+            # Prefer dataset metadata when available.  The dist2coast product reports
+            # distance in km, so unknown units retain that assumption but log it  for
+            # validation.
+            unit = ""
+            try:
+                with rasterio.open(nc_path) as src:
+                    if src.units and src.units[0]:
+                        unit = str(src.units[0]).strip().lower()
+                    if not unit:
+                        unit = str(src.tags(1).get("units", "")).strip().lower()
+                    if not unit:
+                        unit = str(src.tags().get("units", "")).strip().lower()
+            except Exception as e:
+                logger.debug(f"    [Coastline] Could not inspect Dist2Coast units: {e}")
 
-            logger.info("    [Coastline] Successfully generated raster land mask.")
-            return ocean_mask
+            if unit in {"m", "meter", "meters", "metre", "metres"}:
+                scale = 1.0
+            elif unit in {"km", "kilometer", "kilometers", "kilometre", "kilometres"}:
+                scale = 1000.0
+            else:
+                scale = 1000.0
+                logger.warning(
+                    "    [Coastline] Dist2Coast units not identified from metadata; "
+                    "assuming kilometers. Verify this against the fetched product."
+                )
+
+            d2c_m = d2c_grid.astype(np.float32) * scale
+            logger.info(
+                f"    [Coastline] Dist2Coast loaded as signed meters (source units: {unit or 'assumed km'})."
+            )
+            return d2c_m
 
         except Exception as e:
             logger.error(
-                f"    [Coastline] Failed to generate land mask from Dist2Coast: {e}"
+                f"    [Coastline] Failed to generate Dist2Coast distance field: {e}"
             )
             return None
+
+    def _fetch_coastal_context(
+        self,
+        vdatum_grid: Optional[np.ndarray] = None,
+    ) -> Optional[CoastalContext]:
+        """Build the effective water mask plus inland-distance field.
+
+        Dist2Coast defines the native water domain.  Valid VDatum coverage may
+        extend that domain landward so decay starts at the VDatum coverage edge.
+
+        Args:
+            vdatum_grid: The vdatum coverage array.
+
+        Returns:
+            Coastal Context dataclass or None
+        """
+
+        d2c_m = self._fetch_dist2coast_m()
+        if d2c_m is None:
+            return None
+
+        valid_vdatum = None
+        if vdatum_grid is not None:
+            valid_vdatum = np.isfinite(vdatum_grid)
+
+        context = GridEngine.build_coastal_context(
+            signed_distance_m=d2c_m,
+            target_region=self.region,
+            vdatum_valid=valid_vdatum,
+            max_vdatum_extension_m=self.max_vdatum_extension_m,
+        )
+
+        if valid_vdatum is not None:
+            native_water = np.isfinite(d2c_m) & (d2c_m > 0.0)
+            extension_count = np.count_nonzero(
+                context.water_mask & valid_vdatum & ~native_water
+            )
+            logger.info(
+                f"    [Coastline] Effective water mask includes {extension_count} "
+                "VDatum cells beyond native Dist2Coast water."
+            )
+
+        return context
+
+    def _fetch_ocean_mask(self) -> Optional[np.ndarray]:
+        """Compatibility wrapper returning only the effective Dist2Coast water mask."""
+
+        context = self._fetch_coastal_context()
+        return context.water_mask.copy() if context is not None else None
 
     # =========================================================================
     # Chains
@@ -591,13 +697,8 @@ class VerticalTransform:
         total_shift = np.zeros((self.ny, self.nx))
 
         if np.isnan(hydro_shift).any():
-            ocean_mask = self._fetch_ocean_mask()
+            coastal_context = self._fetch_coastal_context(hydro_shift)
             proxy_name = Datums.get_global_proxy(datum_name)
-
-            if ocean_mask is not None:
-                # Carve out the VDatum rivers so they aren't treated as land!
-                valid_vdatum = ~np.isnan(hydro_shift)
-                ocean_mask[valid_vdatum] = True
 
             if self.use_stations:
                 logger.info("    [Override] Forcing Tide Station RBF interpolation...")
@@ -633,7 +734,10 @@ class VerticalTransform:
                             hydro_shift,
                             decay_pixels=self.decay_pixels,
                             buffer_pixels=10,
-                            ocean_mask=ocean_mask,
+                            coastal_context=coastal_context,
+                            decay_distance_m=self.decay_distance_m,
+                            buffer_distance_m=self.buffer_distance_m,
+                            extrapolate_inland=self.extrapolate_inland,
                         )
                         desc.append("Station RBF (Tidal) + FES (MSS) + Inland Decay")
                     else:
@@ -642,7 +746,10 @@ class VerticalTransform:
                             hydro_shift,
                             decay_pixels=self.decay_pixels,
                             buffer_pixels=10,
-                            ocean_mask=ocean_mask,
+                            coastal_context=coastal_context,
+                            decay_distance_m=self.decay_distance_m,
+                            buffer_distance_m=self.buffer_distance_m,
+                            extrapolate_inland=self.extrapolate_inland,
                         )
                         desc.append("Inland Hydro Decay")
                 else:
@@ -651,7 +758,10 @@ class VerticalTransform:
                         hydro_shift,
                         decay_pixels=self.decay_pixels,
                         buffer_pixels=10,
-                        ocean_mask=ocean_mask,
+                        coastal_context=coastal_context,
+                        decay_distance_m=self.decay_distance_m,
+                        buffer_distance_m=self.buffer_distance_m,
+                        extrapolate_inland=self.extrapolate_inland,
                     )
                     desc.append("Inland Hydro Decay")
 
@@ -675,9 +785,11 @@ class VerticalTransform:
                         global_grid=fes_navd88,
                         nx=self.nx,
                         ny=self.ny,
-                        ocean_mask=ocean_mask,
+                        coastal_context=coastal_context,
                         decay_pixels=self.decay_pixels,
                         buffer_pixels=10,
+                        decay_distance_m=self.decay_distance_m,
+                        buffer_distance_m=self.buffer_distance_m,
                     )
                     desc.append(f"Blended w/ Global({proxy_name.upper()})")
                 else:
@@ -685,7 +797,10 @@ class VerticalTransform:
                         hydro_shift,
                         decay_pixels=self.decay_pixels,
                         buffer_pixels=10,
-                        ocean_mask=ocean_mask,
+                        coastal_context=coastal_context,
+                        decay_distance_m=self.decay_distance_m,
+                        buffer_distance_m=self.buffer_distance_m,
+                        extrapolate_inland=self.extrapolate_inland,
                     )
                     desc.append("Inland Hydro Decay")
             else:
@@ -693,12 +808,14 @@ class VerticalTransform:
                     hydro_shift,
                     decay_pixels=self.decay_pixels,
                     buffer_pixels=10,
-                    ocean_mask=ocean_mask,
+                    coastal_context=coastal_context,
+                    decay_distance_m=self.decay_distance_m,
+                    buffer_distance_m=self.buffer_distance_m,
+                    extrapolate_inland=self.extrapolate_inland,
                 )
                 desc.append("Inland Hydro Decay")
 
         total_shift = hydro_shift + geoid_grid
-        total_shift[np.isnan(total_shift)] = 0.0
 
         return total_shift, " + ".join(desc)
 
@@ -750,18 +867,21 @@ class VerticalTransform:
             except Exception:
                 logger.debug("    [Global Chain] FES2014 HAT unavailable.")
 
-        # Coastal Mask to MDT / Tidal Arrays
-        ocean_mask = self._fetch_ocean_mask()
+        # Coastal context clips tidal proxy values to water and supplies a
+        # physical landward distance field for optional meter-based decay.
+        coastal_context = self._fetch_coastal_context()
 
         tidal_shift = GridEngine.fill_nans(
             tidal_shift,
             decay_pixels=self.decay_pixels,
             buffer_pixels=10,
-            ocean_mask=ocean_mask,
+            coastal_context=coastal_context,
+            decay_distance_m=self.decay_distance_m,
+            buffer_distance_m=self.buffer_distance_m,
+            extrapolate_inland=self.extrapolate_inland,
         )
 
         total_shift = mss_grid + tidal_shift
-        total_shift[np.isnan(total_shift)] = 0.0
 
         return total_shift, " + ".join(desc)
 

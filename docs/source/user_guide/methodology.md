@@ -77,7 +77,7 @@ Official tidal models (like NOAA's VDatum) only provide data close to the coast.
 
 * **Offshore Extrapolation:** When a requested bounding box extends beyond native VDatum coverage, Transformez automatically fetches global satellite altimetry (like DTU25 or FES2014) as a proxy.
 
-* **Smart Blending:** To prevent harsh steps between the two models, the engine applies a dynamic spatial crossfade, isolating the Mean Dynamic Topography (MDT) and smoothly blending the VDatum boundary into the global satellite frame.
+* **Smart Blending:** To prevent harsh steps between the two models, the engine applies a dynamic spatial crossfade. Where NOAA VDatum coverage ends offshore, Transformez uses global DTU/FES-derived surfaces as a fallback and blends between valid regional and global coverage to avoid abrupt model seams. Global proxy coverage never expands the water domain; coastline geometry comes from Dist2Coast, with valid VDatum coverage permitted to extend the effective tidal domain in modeled estuaries and rivers.
 
 ## Constant Conversion or Spatial Shifts
 It can be tempting to make the assumption that vertical datums are simple, flat offsets. Many GIS software and users sometimes prefer to query a single, local tide gauge, find the offset (e.g., "MLLW is exactly -1.2 meters below NAVD88"), and apply that flat, constant value across their entire dataset.
@@ -90,15 +90,23 @@ Since water piles up and moves around and tides push into shallow bays and narro
 ## Inland Tidal Decay
 Water levels (and their associated tidal datums) do not physically exist on dry land. However, coastal DEMs require inland datum extrapolation to allow storm surges to properly push water uphill during flood simulations.
 
-* **Voronoi Ridges:** To extrapolate tidal datums inland without introducing artificial slopes, Transformez generates nearest-neighbor Voronoi ridges from the coastline.
-
-* **Gaussian Blurring & Easing:** These ridges are then heavily blurred and crossfaded with the raw coastal data to ensure continuity (a smooth surface with no sharp corners) deep inland.
-
-* **Hermite S-Curve:** Users can dictate how far tidal influences push inland using the `--decay-pixels` parameter. Instead of a harsh linear drop-off, the engine applies a Hermite S-Curve polynomial. This ensures the tidal datum smoothly flattens out into the geodetic baseline as defined by the user.
+1. NASA Dist2Coast provides the primary signed physical distance field.
+   * positive = water
+   * negative = land
+   * zero = coastline-intersection cell
+2. NOAA VDatum may extend the effective tidal-water domain.
+   This is especially important for estuaries and tidal rivers that a coarse global coastline may classify as inland.
+3. Global tidal proxies do not define the coastline.
+   FES/DTU are consumers of the coastal geometry, not contributors to it.
+4. Landward extrapolation is based on physical distance in meters.
+   `--decay-distance 5000` means 5 km whether the DEM is 1 m, 10 m, or 3 arc-seconds.
+5. A buffer can retain the full transformation before decay starts.
+   `--buffer-distance 250` means full strength for the first 250 m inland.
+6. A smooth Hermite/smoothstep curve attenuates the tidal component to zero.
 
 > **⚠️ The Modeling Exception:**
 >
-> Hydrodynamic modelers (Tsunami, Storm Surge, Sea Level Rise) are an exception to this rule. To simulate a wave riding up the terrain, the mathematical offset between the geodetic frame and the tidal frame must be preserved infinitely inland. If you are running a hydrodynamic simulation, always pass `--decay-pixels 0` to disable the decay and generate a continuous extrapolation surface.
+> Hydrodynamic modelers (Tsunami, Storm Surge, Sea Level Rise) are an exception to this rule. Some tsunami, storm-surge, and inundation workflows require a continuous tidal-to-geodetic transformation over terrain that may become wetted during the simulation. For those workflows, users may choose unrestricted inland extrapolation rather than Transformez's default coastal attenuation policy.
 
 ## Autonomous Self-Healing
 Transformez is designed to survive infrastructure failures automatically:
@@ -109,12 +117,13 @@ Transformez is designed to survive infrastructure failures automatically:
 
 * **Failure Mode Examples:**
 
-| Failure                   | Recovery Action           | User Impact              |
-|---------------------------|---------------------------|--------------------------|
-| GEOID18 missing in Alaska | Fall back to GEOID09      | None—automatic           |
-| HTDP cross-epoch fails    | Use static datum shift    | Slight precision loss    |
-| NetCDF corruption         | Delete cache, re-download | Automatic retry          |
-| VDatum grid absent        | Use DTU/FES2014 proxy     | Minimal—blended smoothly |
+| Failure                   | Recovery Action           | User Impact                                  |
+|---------------------------|---------------------------|----------------------------------------------|
+| GEOID18 missing in Alaska | Fall back to GEOID12B     | None—automatic                               |
+| HTDP cross-epoch fails    | Use static datum shift    | Slight precision loss                        |
+| NetCDF corruption         | Delete cache, re-download | Automatic retry                              |
+| VDatum grid absent        | Use DTU/FES global proxy  | Lower regional fidelity; continuous fallback |
+|                           |                           |                                              |
 
 ---
 

@@ -7,7 +7,7 @@
 <p align="center"><strong>Global vertical datum transformations, simplified.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/continuous-dems/transformez"><img src="https://img.shields.io/badge/version-0.6.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com/continuous-dems/transformez"><img src="https://img.shields.io/badge/version-0.7.0-blue.svg" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.12+-yellow.svg" alt="Python"></a>
   <a href="https://badge.fury.io/py/transformez"><img src="https://badge.fury.io/py/transformez.svg" alt="PyPI version"></a>
@@ -56,8 +56,8 @@ transformez raster my_dem.tif -I mllw -O 5703
 **Integrate directly into your fetchez pipeline.**
 
 ```bash
-# Download GEBCO and shift EGM96 to WGS84 on the fly
-fetchez gebco ... --hook transformez:datum_in=5773,datum_out=4979
+# Generate vertical datum shift grids on-demand.
+fetchez transformez --src_datum mllw --dst_datum 4979 --increment 1s
 ```
 ---
 

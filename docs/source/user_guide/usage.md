@@ -13,7 +13,10 @@ transformez grid -R -166/-164/63/64 -E 1s -I mllw -O 4979
 **Transform a raster directly.** Transformez reads the bounds/resolution from the file.
 
 ```bash
-transformez raster my_dem.tif -I mllw -O 5703
+transformez raster my_dem.tif \
+    -I 5703 -O mhw \
+    --decay-distance 5000 \
+    --buffer-distance 250
 ```
 
 **Integrate directly into your fetchez pipeline.**
@@ -22,6 +25,8 @@ transformez raster my_dem.tif -I mllw -O 5703
 # Download GEBCO and shift EGM96 to WGS84 on the fly
 fetchez gebco ... --hook transformez:datum_in=5773,datum_out=4979
 ```
+
+> ⚠️ `--decay-pixels` is retained for backward compatibility. New workflows should use `--decay-distance`, which defines the inland transition in physical meters and is independent of raster resolution.
 
 ## Python API:
 
@@ -53,7 +58,7 @@ out_file = transformez.transform_raster(
     input_raster="my_dem_mllw.tif",
     datum_in="mllw",
     datum_out="5703:g2012b",  # NAVD88 using specific GEOID12B
-    decay_pixels=0,           # Set to 0 for infinite inland extrapolation (Modeling)
+    extrapolate_inland=False,           # For infinite inland extrapolation (Modeling)
     output_raster="my_dem_navd88.tif"
 )
 ```

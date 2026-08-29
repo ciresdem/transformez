@@ -71,6 +71,42 @@ def transformez_cli(verbose: bool, quiet: bool) -> None:
     help="Number of pixels to decay tidal shifts inland.",
 )
 @click.option(
+    "--decay-distance",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help=(
+        "Decay tidal shifts inland over this physical distance in meters. "
+        "When provided, overrides --decay-pixels."
+    ),
+)
+@click.option(
+    "--buffer-distance",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help="Preserve the full coastal shift this far inland before decay begins.",
+)
+@click.option(
+    "--max-vdatum-extension",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help=(
+        "Maximum inland distance where VDatum coverage may extend the "
+        "effective water domain."
+    ),
+)
+@click.option(
+    "--no-inland-decay",
+    "extrapolate_inland",
+    is_flag=True,
+    help=(
+        "Extrapolate tidal shifts inland without decay. "
+        "Use with caution; tidal transformations may be applied far inland."
+    ),
+)
+@click.option(
     "--use-stations",
     is_flag=True,
     help="Force RBF interpolation using live tide stations instead of global satellite models.",
@@ -84,6 +120,10 @@ def transform_run(
     output_datum: str,
     out: Optional[str],
     decay_pixels: int,
+    decay_distance: Optional[float],
+    buffer_distance: Optional[float],
+    max_vdatum_extension: Optional[float],
+    extrapolate_inland: bool,
     use_stations: bool,
     preview: bool,
 ) -> None:
@@ -106,6 +146,10 @@ def transform_run(
             datum_in=input_datum,
             datum_out=output_datum,
             decay_pixels=decay_pixels,
+            decay_distance_m=decay_distance,
+            buffer_distance_m=buffer_distance,
+            max_vdatum_extension_m=max_vdatum_extension,
+            extrapolate_inland=extrapolate_inland,
             output_raster=out,
             use_stations=use_stations,
             verbose=True,
@@ -137,6 +181,9 @@ def transform_run(
             datum_in=input_datum,
             datum_out=output_datum,
             decay_pixels=decay_pixels,
+            decay_distance_m=decay_distance,
+            buffer_distance_m=buffer_distance,
+            max_vdatum_extension_m=max_vdatum_extension,
             out_fn=out_fn,
             verbose=True,
         )
@@ -180,6 +227,44 @@ def transform_run(
     "--decay-pixels", type=int, default=100, help="Pixels to decay tidal shifts inland."
 )
 @click.option(
+    "--decay-distance",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help=(
+        "Decay tidal shifts inland over this physical distance in meters. "
+        "When provided, overrides --decay-pixels."
+    ),
+)
+@click.option(
+    "--buffer-distance",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help=(
+        "Preserve the full coastal shift for this distance inland before decay begins."
+    ),
+)
+@click.option(
+    "--max-vdatum-extension",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help=(
+        "Maximum inland distance from the Dist2Coast shoreline where valid "
+        "VDatum coverage may extend the effective water domain."
+    ),
+)
+@click.option(
+    "--no-inland-decay",
+    "extrapolate_inland",
+    is_flag=True,
+    help=(
+        "Extrapolate tidal shifts inland without decay. "
+        "Use with caution; tidal transformations may be applied far inland."
+    ),
+)
+@click.option(
     "--use-stations",
     is_flag=True,
     help="Force RBF interpolation using live tide stations instead of global satellite models.",
@@ -194,6 +279,10 @@ def transform_grid(
     output_datum: str,
     out: Optional[str],
     decay_pixels: int,
+    decay_distance: Optional[float],
+    buffer_distance: Optional[float],
+    max_vdatum_extension: Optional[float],
+    extrapolate_inland: bool,
     use_stations: bool,
     preview: bool,
 ) -> None:
@@ -214,6 +303,10 @@ def transform_grid(
         datum_in=input_datum,
         datum_out=output_datum,
         decay_pixels=decay_pixels,
+        decay_distance_m=decay_distance,
+        buffer_distance_m=buffer_distance,
+        max_vdatum_extension_m=max_vdatum_extension,
+        extrapolate_inland=extrapolate_inland,
         out_fn=out_fn,
         use_stations=use_stations,
         verbose=True,
@@ -257,6 +350,44 @@ def transform_grid(
     "--decay-pixels", type=int, default=100, help="Pixels to decay tidal shifts inland."
 )
 @click.option(
+    "--decay-distance",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help=(
+        "Decay tidal shifts inland over this physical distance in meters. "
+        "When provided, overrides --decay-pixels."
+    ),
+)
+@click.option(
+    "--buffer-distance",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help=(
+        "Preserve the full coastal shift for this distance inland before decay begins."
+    ),
+)
+@click.option(
+    "--max-vdatum-extension",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    metavar="METERS",
+    help=(
+        "Maximum inland distance from the Dist2Coast shoreline where valid "
+        "VDatum coverage may extend the effective water domain."
+    ),
+)
+@click.option(
+    "--no-inland-decay",
+    "extrapolate_inland",
+    is_flag=True,
+    help=(
+        "Extrapolate tidal shifts inland without attenuation. "
+        "Use with caution; tidal transformations may be applied far inland."
+    ),
+)
+@click.option(
     "--use-stations",
     is_flag=True,
     help="Force RBF interpolation using live tide stations instead of global satellite models.",
@@ -274,6 +405,10 @@ def transform_raster(
     out_units: str,
     out: Optional[str],
     decay_pixels: int,
+    decay_distance: Optional[float],
+    buffer_distance: Optional[float],
+    max_vdatum_extension: Optional[float],
+    extrapolate_inland: bool,
     use_stations: bool,
     save_shift: bool,
 ) -> None:
@@ -287,6 +422,10 @@ def transform_raster(
         datum_in=input_datum,
         datum_out=output_datum,
         decay_pixels=decay_pixels,
+        decay_distance_m=decay_distance,
+        buffer_distance_m=buffer_distance,
+        max_vdatum_extension_m=max_vdatum_extension,
+        extrapolate_inland=extrapolate_inland,
         output_raster=out,
         z_unit_in=in_units,
         z_unit_out=out_units,
@@ -344,7 +483,7 @@ def transform_list() -> None:
         "  4. Constant Offset   : Safety fallback for sparse coverage (< 3 stations)."
     )
     click.echo(
-        "  5. Inland Decay      : Vector-masked spatial decay for rivers/estuaries going inland."
+        "  5. Inland Decay      : Coast-aware physical or pixel-based tidal decay."
     )
 
     click.secho("\n💡 Pro-Tip:", fg="yellow", bold=True, nl=False)
