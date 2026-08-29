@@ -1,5 +1,38 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
+
+
+title: "Transforemez"
+doi: "10.5281/zenodo.22131423"
+repository-code: "https://github.com/continuous-dems/transformez"
+url: https://transformez.readthedocs.io
+abstract: >
+  Transformez is a standalone Python engine for converting geospatial
+  data between vertical datums.
+
+version: 0.6.0
+date-released: 2026-08-27
+
+type: "software"
+license: MIT
+keywords:
+  - vertical datum
+  - geodesy
+  - tidal transformation
+  - DEM
+  - VDatum
+  - NOAA
+  - FES2014
+  - DTU
+
+
+contact:
+  - name: "The Continuous DEMs Community"
+    website: "https://continuous-dems.github.io"
+  - name: "The Continuous DEMs Community Chat"
+    website: "https://cudem.zulipchat.com"
+
+
 authors:
   - family-names: Love
     given-names: Matthew
@@ -12,17 +45,24 @@ authors:
   - family-names: Fisher
     given-names: Matt
 
-website: https://transformez.readthedocs.io
-title: "Transformez"
-version: 0.6.0
-date-released: 2026-08-27
-url: "https://github.com/continuous-dems/transformez"
-keywords:
-  - vertical datum
-  - geodesy
-  - tidal transformation
-  - DEM
-  - VDatum
-  - NOAA
-  - FES2014
-license: MIT
+
+references:
+  - type: "grant"
+    title: "Pathways to Enable Open-Source Ecosystems (POSE) Phase I"
+    institution:
+      name: "National Science Foundation"
+    number: "2449419"
+    authors:
+      - family-names: Love
+        given-names: Matthew
+      - family-names: Amante
+        given-names: Christopher
+      - family-names: Carignan
+        given-names: Kelly
+      - family-names: MacFerrin
+        given-names: Michael
+      - family-names: Lim
+        given-names: Elliot
+      - family-names: Fisher
+        given-names: Matt
+        website: "https://mattz.cool"
