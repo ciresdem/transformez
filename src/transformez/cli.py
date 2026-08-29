@@ -34,7 +34,7 @@ class TransformezMainGroup(FetchezMainGroup):
         if cmd_name == "grid":
             click.secho(
                 " DEPRECATION WARNING: 'transformez grid' is deprecated and will be removed in a future release.\n"
-                "Please use 'transformez build' to generate a transformation grid..",
+                "Please use 'transformez build'..",
                 fg="yellow",
                 err=True,
             )
@@ -43,7 +43,7 @@ class TransformezMainGroup(FetchezMainGroup):
         elif cmd_name == "raster":
             click.secho(
                 " DEPRECATION WARNING: 'transformez raster' is deprecated and will be removed in a future release.\n"
-                "Please use 'transformez shift' to generate a transform an existing dataset...",
+                "Please use 'transformez shift'...",
                 fg="yellow",
                 err=True,
             )
@@ -61,7 +61,7 @@ class TransformezMainGroup(FetchezMainGroup):
 @click.option("--verbose", is_flag=True, help="Enable verbose debug logging.")
 @click.option("--quiet", is_flag=True, help="Suppress non-error output.")
 def transformez_cli(verbose: bool, quiet: bool) -> None:
-    """Apply vertical datum transformations and generate shift grids."""
+    """Build vertical datum shift grids and transform elevation rasters."""
 
     setup_logging(name="transformez", quiet=quiet, verbose=verbose)
     pass
@@ -245,36 +245,31 @@ def transform_run(
 )
 @click.option("--out", "-o", help="Output filename (default: auto-named).")
 @click.option(
-    "--decay-pixels", type=int, default=100, help="Pixels to decay tidal shifts inland."
+    "--decay-pixels",
+    type=int,
+    default=100,
+    help="DEPRECATED: Pixel-based inland decay distance; use --decay-distance.",
 )
 @click.option(
     "--decay-distance",
     type=click.FloatRange(min=0.0),
     default=None,
     metavar="METERS",
-    help=(
-        "Decay tidal shifts inland over this physical distance in meters. "
-        "When provided, overrides --decay-pixels."
-    ),
+    help="Distance over which tidal shifts decay to zero inland.",
 )
 @click.option(
     "--buffer-distance",
     type=click.FloatRange(min=0.0),
     default=None,
     metavar="METERS",
-    help=(
-        "Preserve the full coastal shift for this distance inland before decay begins."
-    ),
+    help="Distance inland to preserve the full coastal shift before decay begins.",
 )
 @click.option(
     "--max-vdatum-extension",
     type=click.FloatRange(min=0.0),
     default=None,
     metavar="METERS",
-    help=(
-        "Maximum inland distance from the Dist2Coast shoreline where valid "
-        "VDatum coverage may extend the effective water domain."
-    ),
+    help="Maximum inland extension of valid VDatum coverage beyond the shoreline.",
 )
 @click.option(
     "--no-inland-decay",
@@ -307,7 +302,7 @@ def transform_grid(
     use_stations: bool,
     preview: bool,
 ) -> None:
-    """Generate a standalone vertical shift grid for a specified region."""
+    """Build a vertical datum shift grid for a region."""
 
     click.secho(
         f"Generating vertical shift grid for region: {region}...",
@@ -350,21 +345,21 @@ def transform_grid(
 # =====================================================================
 @transformez_cli.command("shift", cls=FetchezMainCommand)
 @click.argument("input_file", type=click.Path(exists=True))
-@click.option("-I", "--input-datum", required=True, help="Source Datum (e.g., 'mllw').")
+@click.option("-I", "--input-datum", required=True, help="Source datum (e.g., 'mllw').")
 @click.option(
-    "-O", "--output-datum", required=True, help="Target Datum (e.g., '5703:g2012b')."
+    "-O", "--output-datum", required=True, help="Target datum (e.g., '5703:g2012b')."
 )
 @click.option(
     "--in-units",
     default="auto",
     type=click.Choice(["auto", "m", "ft", "us-ft"]),
-    help="Z-units of the input DEM.",
+    help="Vertical units of the input raster.",
 )
 @click.option(
     "--out-units",
     default="auto",
     type=click.Choice(["auto", "m", "ft", "us-ft"]),
-    help="Desired Z-units for the output DEM.",
+    help="Vertical units of the output raster.",
 )
 @click.option("--out", "-o", help="Output filename (default: auto-named).")
 @click.option(
@@ -433,7 +428,7 @@ def transform_raster(
     use_stations: bool,
     save_shift: bool,
 ) -> None:
-    """Apply a vertical datum shift to an existing DEM."""
+    """Transform an elevation raster between vertical datums."""
 
     click.secho(f"Transforming raster: {input_file}", fg="cyan", bold=True)
     click.echo(f"   Shift: {input_datum} ➔ {output_datum}")
