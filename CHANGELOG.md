@@ -6,7 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [0.6.0] - 2026-08-23
+## [ UNRELEASED ]
+
+### Added
+- Coastal Context dataclass to hold context values
+- test script to validate refactor
+- grid_engine.build_coastal_context function to build the coastal context dataclass.
+
+### Changed
+- Updated CLI options to use new dist2coast km decay and blend options
+- Process blends and decays using the km field from dist2coast instead of edt.
+
+### Fixed
+- Refactor dist2coast usage to fix a bug that would burn the dist2coast edges onto the raster result. This was due to performing an edt distance transform from the low-res dist2coast raster, treating it as a mask instead of a distance field. Update allows setting the distance by km instead of number of pixels and smooths the 'zero' field to get proper transitions.
+- Since dist2coast sets it's nodata value to zero, we were incorrectly masking the dist2coast raster by ignoring the zero values (coastline), we now have an option to ignore the nodata value in grid_engine.
+
+## [0.6.0] - 2026-08-27
 
 ### Added
 

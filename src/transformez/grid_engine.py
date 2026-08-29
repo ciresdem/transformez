@@ -303,7 +303,7 @@ class GridEngine:
 
             water_mask |= accepted_extension
 
-        # Native Dist2Coast already gives the best physical distance to its own
+        # Dist2Coast already gives the best physical distance to its own
         # shoreline.  Convert signed land distances to positive inland meters.
         native_inland_m = np.full(
             signed_distance_m.shape,
@@ -317,10 +317,10 @@ class GridEngine:
         # Known water is zero distance inland.
         native_inland_m[native_water] = 0.0
 
-        # Dist2Coast uses zero for cells intersected by the coastline. Because the
-        # source product also advertises zero as nodata, callers must preserve these
-        # cells when loading the signed-distance field. They are not true 0 m point
-        # distances, so resolve the band from the nearest definite-water cell.
+        # Dist2Coast uses zero for cells intersected by the coastline. Because Dist2Coast
+        # also sets zero as nodata, we must preserve these cells when loading the
+        # signed-distance field. They are not true 0 m point distances, so resolve the band
+        # from the nearest definite-water cell.
         if native_coast.any() and native_water.any():
             dist_from_water_m = distance_transform_edt(
                 ~native_water,
