@@ -47,7 +47,7 @@ class TransformezMainGroup(FetchezMainGroup):
                 fg="yellow",
                 err=True,
             )
-            return click.Group.get_command(self, ctx, "build")
+            return click.Group.get_command(self, ctx, "shift")
 
         return click.Group.get_command(self, ctx, cmd_name)
 
