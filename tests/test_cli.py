@@ -23,13 +23,13 @@ def test_cli_base_help(runner):
 
     assert result.exit_code == 0
     assert (
-        "Apply vertical datum transformations and generate shift grids."
+        "Build vertical datum shift grids and transform elevation rasters."
         in result.output
     )
 
     expected_commands = [
-        "grid",
-        "raster",
+        "build",
+        "shift",
         "list",
         "prefetch",
         "htdp",
