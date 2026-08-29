@@ -1,90 +1,27 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
-   viewBox="0 0 300 200"
-   width="300"
-   height="200"
-   version="1.1"
-   id="svg178"
-   shape-rendering="crispEdges"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
-  <defs
-     id="defs5327" />
-  <!-- COASTLINE CROSS-SECTION PALETTE -->
-  <style
-     id="style5310">
-    rect {
-    stroke-width: 4.8;
-    stroke-linejoin: round;
-    rx: 0.65px;
-    stroke: #000000;
-    stroke-width: 0.14px;
-    stroke-opacity: 0.425;
-    }
-    .PEAK    { fill: #A88572; stroke: #5C4539; } /* Peaks/Highlands (Top-Left Summit) */
-    .LOW-TOP { fill: #85B58D; stroke: #5B6343; } /* Lowland Coast (Green Shoreline) */
-    .SHAL-TOP{ fill: #77A3C8; stroke: #2B4C7E; } /* Shallow Water (Continental Shelf) */
-    .LOW-BOT { fill: #6B9473; stroke: #3D4730; } /* Lowland Slope (Darker, Shaded Land) */
-    .SHAL-BOT{ fill: #5482B4; stroke: #2B4C7E; } /* Shallow Drop-off (Deepening Water) */
-    .DEEP    { fill: #2B4C7E; stroke: #1A3052; } /* Deep Ocean Trench (Bottom-Right Abyss) */
-    .SEAFOAM    { fill: #F4F7FA; stroke: #DEEAFA; } /* Ice White (Frothing Wave Crest) */
-    .WAVE-WALL  { fill: #2B4C7E; stroke: #1A3052; } /* Deep Ocean (Violent Moving Mass) */
-    .SKY-AHEAD  { fill: #77A3C8; stroke: #2B4C7E; } /* Shallow Blue (The Calm Sky Before the Hit) */
-    .FLOOD-PLAIN{ fill: #85B58D; stroke: #2B4C7E; } /* Lowland Green (Coastline Getting Swallowed) */
-    .LAST-PEAK  { fill: #A88572; stroke: #5C4539; } /* Peaks Brown (The Final High Ground) */
-    .BORDER { fill: none; stroke:#000000; stroke-width:16; } /* Border */xs
-  </style>
-  <!-- TOP ROW (Y=0): The High Ground Sloping Down to the Shallows -->
-  <rect
-     x="0"
-     y="0"
-     width="100"
-     height="100"
-     class="SEAFOAM"
-     id="rect5312"
-     style="fill:#cdd7eb;fill-opacity:1" />
-  <rect
-     x="100"
-     y="0"
-     width="100"
-     height="100"
-     class="WAVE-WALL"
-     id="rect5314" />
-  <rect
-     x="200"
-     y="0"
-     width="100"
-     height="100"
-     class="SKY-AHEAD"
-     id="rect5316" />
-  <!-- BOTTOM ROW (Y=100): The Underground Slope Crashing into the Deep Abyss -->
-  <rect
-     x="0"
-     y="100"
-     width="100"
-     height="100"
-     class="WAVE-WALL"
-     id="rect5318" />
-  <rect
-     x="100"
-     y="100"
-     width="100"
-     height="100"
-     class="FLOOD-PLAIN"
-     id="rect5320" />
-  <rect
-     x="200"
-     y="100"
-     width="100"
-     height="100"
-     class="LAST-PEAK"
-     id="rect5322" />
-  <rect
-     id="rect7323"
-     width="300"
-     height="200"
-     x="0"
-     y="0"
-     rx="1.8574402"
-     class="BORDER"/>
+    viewBox="0 0 300 200"
+    width="300"
+    height="200"
+    role="img"
+    version="1.1"
+    id="svg178"
+    aria-labelledby="title desc"
+    xmlns="http://www.w3.org/2000/svg">
+  <title id="title">Transformez colored logo</title>
+  <desc id="desc">Six rounded raster tiles with a transparent wave cutout, representing a coastal vertical datum transformation.</desc>
+  <defs>
+    <mask id="wave-cutout">
+      <rect width="300" height="200" fill="white"/>
+      <path d="M-10 86 C28 88 51 71 76 59 C97 49 116 51 135 63 C154 75 166 94 179 113 C194 135 212 143 233 134 C253 125 270 107 310 91 L310 122 C274 137 255 153 236 160 C210 170 185 158 167 137 C149 116 136 97 114 88 C92 80 73 87 54 97 C34 108 13 114 -10 113 Z" fill="black"/>
+    </mask>
+  </defs>
+  <g mask="url(#wave-cutout)">
+    <rect x="4" y="4" width="92" height="92" rx="16" fill="#F4F1E8"/>
+    <rect x="104" y="4" width="92" height="92" rx="16" fill="#2D8DD6"/>
+    <rect x="204" y="4" width="92" height="92" rx="16" fill="#58AF49"/>
+    <rect x="4" y="104" width="92" height="92" rx="16" fill="#123E67"/>
+    <rect x="104" y="104" width="92" height="92" rx="16" fill="#159CC7"/>
+    <rect x="204" y="104" width="92" height="92" rx="16" fill="#B8815F"/>
+  </g>
 </svg>
