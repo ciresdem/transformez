@@ -67,167 +67,6 @@ def transformez_cli(verbose: bool, quiet: bool) -> None:
     pass
 
 
-@transformez_cli.command("run", cls=FetchezMainCommand)
-@click.argument("input_file", required=False)
-@click.option(
-    "-R", "--region", help="Bounding box or location string (if no input file)."
-)
-@click.option(
-    "-E", "--increment", help="Resolution (e.g., 1s, 30m) (if no input file)."
-)
-@click.option(
-    "-I", "--input-datum", required=True, help="Source Datum (e.g., 'mllw', '5703')."
-)
-@click.option(
-    "-O",
-    "--output-datum",
-    required=True,
-    help="Target Datum (e.g., '4979', '5703:g2012b').",
-)
-@click.option("--out", "-o", help="Output filename (default: auto-named).")
-@click.option(
-    "--decay-pixels",
-    type=int,
-    default=100,
-    help="Number of pixels to decay tidal shifts inland.",
-)
-@click.option(
-    "--decay-distance",
-    type=click.FloatRange(min=0.0),
-    default=None,
-    metavar="METERS",
-    help=(
-        "Decay tidal shifts inland over this physical distance in meters. "
-        "When provided, overrides --decay-pixels."
-    ),
-)
-@click.option(
-    "--buffer-distance",
-    type=click.FloatRange(min=0.0),
-    default=None,
-    metavar="METERS",
-    help="Preserve the full coastal shift this far inland before decay begins.",
-)
-@click.option(
-    "--max-vdatum-extension",
-    type=click.FloatRange(min=0.0),
-    default=None,
-    metavar="METERS",
-    help=(
-        "Maximum inland distance where VDatum coverage may extend the "
-        "effective water domain."
-    ),
-)
-@click.option(
-    "--no-inland-decay",
-    "extrapolate_inland",
-    is_flag=True,
-    help=(
-        "Extrapolate tidal shifts inland without decay. "
-        "Use with caution; tidal transformations may be applied far inland."
-    ),
-)
-@click.option(
-    "--use-stations",
-    is_flag=True,
-    help="Force RBF interpolation using live tide stations instead of global satellite models.",
-)
-@click.option("--preview", is_flag=True, help="Preview the transformation output.")
-def transform_run(
-    input_file: Optional[str],
-    region: Optional[str],
-    increment: Optional[str],
-    input_datum: str,
-    output_datum: str,
-    out: Optional[str],
-    decay_pixels: int,
-    decay_distance: Optional[float],
-    buffer_distance: Optional[float],
-    max_vdatum_extension: Optional[float],
-    extrapolate_inland: bool,
-    use_stations: bool,
-    preview: bool,
-) -> None:
-    """Transform a raster's vertical datum or generate a standalone shift grid.
-
-    If an INPUT_FILE is provided, that specific raster is transformed in place.
-    If no INPUT_FILE is provided, -R and -E must be used to generate a shift grid.
-
-    Examples:\n
-      Transform a DEM : transformez run my_dem.tif -I mllw -O 5703
-      Generate a Grid : transformez run -R loc:"Miami" -E 1s -I mllw -O 4979
-    """
-
-    if input_file:
-        click.secho(f"Transforming raster: {input_file}", fg="cyan", bold=True)
-        click.echo(f"   Shift: {input_datum} ➔ {output_datum}")
-
-        raster_result = api.transform_raster(
-            input_raster=input_file,
-            datum_in=input_datum,
-            datum_out=output_datum,
-            decay_pixels=decay_pixels,
-            decay_distance_m=decay_distance,
-            buffer_distance_m=buffer_distance,
-            max_vdatum_extension_m=max_vdatum_extension,
-            extrapolate_inland=extrapolate_inland,
-            output_raster=out,
-            use_stations=use_stations,
-            verbose=True,
-        )
-
-        if raster_result:
-            click.secho(
-                f"Successfully transformed raster: {raster_result}",
-                fg="green",
-                bold=True,
-            )
-        else:
-            click.secho("Failed to transform raster.", fg="red")
-            sys.exit(1)
-
-    elif region and increment:
-        click.secho(
-            f"Generating vertical shift grid for region: {region}...",
-            fg="cyan",
-            bold=True,
-        )
-        click.echo(f"   Shift: {input_datum} ➔ {output_datum} @ {increment}")
-
-        out_fn = out or f"shift_{input_datum}_to_{output_datum.replace(':', '_')}.tif"
-
-        grid_result = api.generate_grid(
-            region=region,
-            increment=increment,
-            datum_in=input_datum,
-            datum_out=output_datum,
-            decay_pixels=decay_pixels,
-            decay_distance_m=decay_distance,
-            buffer_distance_m=buffer_distance,
-            max_vdatum_extension_m=max_vdatum_extension,
-            out_fn=out_fn,
-            verbose=True,
-        )
-
-        if preview and grid_result is not None:
-            api.plot_grid(grid_result, region)
-
-        if grid_result is not None:
-            click.secho(
-                f"Successfully generated shift grid: {out_fn}", fg="green", bold=True
-            )
-        else:
-            click.secho("Failed to generate shift grid.", fg="red")
-            sys.exit(1)
-
-    else:
-        click.secho(
-            "Error: You must provide either an INPUT_FILE or both --region and --increment.",
-            fg="red",
-        )
-        sys.exit(1)
-
-
 # =====================================================================
 # GENERATE SHIFT GRID
 # =====================================================================
@@ -275,18 +114,15 @@ def transform_run(
     "--no-inland-decay",
     "extrapolate_inland",
     is_flag=True,
-    help=(
-        "Extrapolate tidal shifts inland without decay. "
-        "Use with caution; tidal transformations may be applied far inland."
-    ),
+    help="Disable inland decay of tidal shifts. Use with caution: tidal transformations may then extend far inland.",
 )
 @click.option(
     "--use-stations",
     is_flag=True,
-    help="Force RBF interpolation using live tide stations instead of global satellite models.",
+    help="Use tide-station interpolation for tidal transformations when available.",
 )
 @click.option(
-    "--preview", is_flag=True, help="Show matplotlib preview instead of saving."
+    "--preview", is_flag=True, help="Display a preview of the generated shift grid."
 )
 def transform_grid(
     region: str,
@@ -363,50 +199,42 @@ def transform_grid(
 )
 @click.option("--out", "-o", help="Output filename (default: auto-named).")
 @click.option(
-    "--decay-pixels", type=int, default=100, help="Pixels to decay tidal shifts inland."
+    "--decay-pixels",
+    type=int,
+    default=100,
+    help="DEPRECATED: Pixel-based inland decay distance; use --decay-distance.",
 )
 @click.option(
     "--decay-distance",
     type=click.FloatRange(min=0.0),
     default=None,
     metavar="METERS",
-    help=(
-        "Decay tidal shifts inland over this physical distance in meters. "
-        "When provided, overrides --decay-pixels."
-    ),
+    help="Distance over which tidal shifts decay to zero inland.",
 )
 @click.option(
     "--buffer-distance",
     type=click.FloatRange(min=0.0),
     default=None,
     metavar="METERS",
-    help=(
-        "Preserve the full coastal shift for this distance inland before decay begins."
-    ),
+    help="Distance inland to preserve the full coastal shift before decay begins.",
 )
 @click.option(
     "--max-vdatum-extension",
     type=click.FloatRange(min=0.0),
     default=None,
     metavar="METERS",
-    help=(
-        "Maximum inland distance from the Dist2Coast shoreline where valid "
-        "VDatum coverage may extend the effective water domain."
-    ),
+    help="Maximum inland extension of valid VDatum coverage beyond the shoreline.",
 )
 @click.option(
     "--no-inland-decay",
     "extrapolate_inland",
     is_flag=True,
-    help=(
-        "Extrapolate tidal shifts inland without attenuation. "
-        "Use with caution; tidal transformations may be applied far inland."
-    ),
+    help="Disable inland decay of tidal shifts. Use with caution: tidal transformations may then extend far inland.",
 )
 @click.option(
     "--use-stations",
     is_flag=True,
-    help="Force RBF interpolation using live tide stations instead of global satellite models.",
+    help="Use tide-station interpolation for tidal transformations when available.",
 )
 @click.option(
     "--save-shift",
