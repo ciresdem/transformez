@@ -33,6 +33,11 @@ from transformez import __version__
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_DECAY_DISTANCE_M = 5_000.0
+DEFAULT_BUFFER_DISTANCE_M = 250.0
+DEFAULT_MAX_VDATUM_EXTENSION_M = None
+
+
 class SRSParser:
     """Parses SRS and prepares a Decoupled Transformation:
 
@@ -47,6 +52,9 @@ class SRSParser:
         region: Optional[Any] = None,
         vert_grid: Optional[Any] = None,
         cache_dir: str = ".",
+        decay_distance_m: Optional[float] = DEFAULT_DECAY_DISTANCE_M,
+        buffer_distance_m: float = DEFAULT_BUFFER_DISTANCE_M,
+        max_vdatum_extension_m: Optional[float] = DEFAULT_MAX_VDATUM_EXTENSION_M,
         **kwargs: Any,
     ):
         self.src_srs_input = src_srs
@@ -54,6 +62,9 @@ class SRSParser:
         self.region = region
         self.manual_vert_grid = vert_grid
         self.cache_dir = cache_dir
+        self.decay_distance_m = decay_distance_m
+        self.buffer_distance_m = buffer_distance_m
+        self.max_vdatum_extension_m = max_vdatum_extension_m
 
         self.tc: Dict[str, Any] = {
             "src_crs": None,
@@ -255,13 +266,16 @@ class SRSParser:
         effective_region_crs = self._vertical_grid_region_crs(proc_region)
         region_crs_key = self._vertical_grid_crs_cache_key(effective_region_crs)
         parts = [
-            "vertical-grid-cache-v3",
+            "vertical-grid-cache-v4",
             src_crs_key,
             region_crs_key,
             str(s_ident),
             str(d_ident),
             str(self.tc["src_geoid"] or ""),
             str(self.tc["dst_geoid"] or ""),
+            str(self.decay_distance_m),
+            str(self.buffer_distance_m),
+            str(self.max_vdatum_extension_m),
             format(float(proc_region.xmin), ".17g"),
             format(float(proc_region.xmax), ".17g"),
             format(float(proc_region.ymin), ".17g"),
@@ -324,6 +338,9 @@ class SRSParser:
                 epsg_out=d_ident,
                 geoid_in=self.tc["src_geoid"],
                 geoid_out=self.tc["dst_geoid"],
+                decay_distance_m=self.decay_distance_m,
+                buffer_distance_m=self.buffer_distance_m,
+                max_vdatum_extension_m=self.max_vdatum_extension_m,
                 cache_dir=self.cache_dir,
             )
             shift_arr, _ = vt._vertical_transform()
@@ -342,6 +359,10 @@ class SRSParser:
                 "TRANSFORMEZ_GEOID_IN": str(self.tc.get("src_geoid", "None")),
                 "TRANSFORMEZ_GEOID_OUT": str(self.tc.get("dst_geoid", "None")),
                 "TRANSFORMEZ_NATIVE_CRS": str(self.tc["src_crs"].name),
+                "TRANSFORMEZ_DECAY_MODE": "physical",
+                "TRANSFORMEZ_DECAY_DISTANCE_M": str(self.decay_distance_m),
+                "TRANSFORMEZ_BUFFER_DISTANCE_M": str(self.buffer_distance_m),
+                "TRANSFORMEZ_MAX_VDATUM_EXTENSION_M": str(self.max_vdatum_extension_m),
             }
             GridWriter.write(
                 self.tc["trans_fn"],

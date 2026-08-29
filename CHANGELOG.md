@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Updated CLI options to use new dist2coast km decay and blend options
 - Process blends and decays using the km field from dist2coast instead of edt.
+- Updated srs.py to use the new coastal context and expose their options.
 
 ### Fixed
 - Refactor dist2coast usage to fix a bug that would burn the dist2coast edges onto the raster result. This was due to performing an edt distance transform from the low-res dist2coast raster, treating it as a mask instead of a distance field. Update allows setting the distance by km instead of number of pixels and smooths the 'zero' field to get proper transitions.
