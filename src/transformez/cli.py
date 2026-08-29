@@ -21,7 +21,7 @@ from fetchez.cli import setup_logging
 from transformez import api
 
 TRANSFORMEZ_COMMANDS = {
-    "Execution": ["grid", "raster"],
+    "Execution": ["build", "shift"],
     "Discovery": ["list", "prefetch"],
     "External": ["htdp", "vdatum"],
 }
@@ -29,6 +29,27 @@ TRANSFORMEZ_COMMANDS = {
 
 class TransformezMainGroup(FetchezMainGroup):
     """A custom Click Group that handles deprecated aliases."""
+
+    def get_command(self, ctx, cmd_name):
+        if cmd_name == "grid":
+            click.secho(
+                " DEPRECATION WARNING: 'transformez grid' is deprecated and will be removed in a future release.\n"
+                "Please use 'transformez build' to generate a transformation grid..",
+                fg="yellow",
+                err=True,
+            )
+            return click.Group.get_command(self, ctx, "build")
+
+        elif cmd_name == "raster":
+            click.secho(
+                " DEPRECATION WARNING: 'transformez raster' is deprecated and will be removed in a future release.\n"
+                "Please use 'transformez shift' to generate a transform an existing dataset...",
+                fg="yellow",
+                err=True,
+            )
+            return click.Group.get_command(self, ctx, "build")
+
+        return click.Group.get_command(self, ctx, cmd_name)
 
 
 @click.group(
@@ -210,7 +231,7 @@ def transform_run(
 # =====================================================================
 # GENERATE SHIFT GRID
 # =====================================================================
-@transformez_cli.command("grid", cls=FetchezMainCommand)
+@transformez_cli.command("build", cls=FetchezMainCommand)
 @click.option("-R", "--region", required=True, help="Bounding box or location string.")
 @click.option("-E", "--increment", required=True, help="Resolution (e.g., 1s, 30m).")
 @click.option(
@@ -327,7 +348,7 @@ def transform_grid(
 # =====================================================================
 # TRANSFORM EXISTING RASTER (DEM)
 # =====================================================================
-@transformez_cli.command("raster", cls=FetchezMainCommand)
+@transformez_cli.command("shift", cls=FetchezMainCommand)
 @click.argument("input_file", type=click.Path(exists=True))
 @click.option("-I", "--input-datum", required=True, help="Source Datum (e.g., 'mllw').")
 @click.option(
