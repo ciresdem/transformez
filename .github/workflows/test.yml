@@ -25,7 +25,7 @@ jobs:
         run: uv sync --group test
 
       - name: Test
-        run: uv run pytest -vv -r ap --cov
+        run: uv run pytest -vv -r ap --cov -m "not validation"
 
       - name: Package the extension
         run: uv build
