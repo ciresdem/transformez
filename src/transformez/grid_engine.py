@@ -602,10 +602,10 @@ class GridEngine:
             True if successful, False otherwise.
         """
 
-        from .definitions import Datums
+        from .utils import UNITS
 
-        factor_in = Datums.get_unit_factor(z_unit_in)
-        factor_out = Datums.get_unit_factor(z_unit_out)
+        factor_in = UNITS.get_unit_factor_m(z_unit_in)
+        factor_out = UNITS.get_unit_factor_m(z_unit_out)
 
         try:
             with rasterio.open(src_dem) as src:

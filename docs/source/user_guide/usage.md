@@ -28,6 +28,52 @@ fetchez gebco ... --hook transformez:datum_in=5773,datum_out=4979
 
 > ⚠️ `--decay-pixels` is retained for backward compatibility. New workflows should use `--decay-distance`, which defines the inland transition in physical meters and is independent of raster resolution.
 
+
+## Reference Inputs
+
+Transformez accepts standard EPSG coordinate reference identifiers as well as namespaced references for tidal and model-based vertical surfaces.
+
+Common examples include:
+
+```text
+EPSG:5703        # NAVD88 height
+EPSG:4979        # WGS 84 ellipsoidal height
+vdatum:mllw      # NOAA VDatum Mean Lower Low Water
+vdatum:mhw       # NOAA VDatum Mean High Water
+global:lat       # Global Lowest Astronomical Tide proxy
+global:mss       # Global Mean Sea Surface
+```
+
+For backward compatibility, common shorthand names remain supported:
+
+```text
+mllw
+mlw
+mhw
+mhhw
+msl
+lat
+hat
+mss
+```
+
+These shorthand forms are normalized internally to their corresponding namespaced references.
+
+Compound horizontal and vertical references may also be supplied where supported, for example:
+
+```text
+EPSG:4326+5703
+```
+
+Legacy Transformez/CUDEM geoid-qualified strings remain supported during the reference-system transition:
+
+```text
+EPSG:4326+5703+geoid:g2012b
+```
+
+For new code, prefer explicit EPSG and namespaced reference identifiers where practical.
+
+
 ## Python API:
 
 Transformez provides a high-level API for embedding transformations directly into your Python scripts, Jupyter Notebooks, or automated pipelines.
@@ -66,13 +112,14 @@ out_file = transformez.transform_raster(
 
 ## Hydrodynamic & Tsunami Modeling
 
-By default, Transformez applies a 100-pixel decay to tidal transformations to smoothly transition coastal datums (like `mhw` or `mllw`) back to the terrestrial geodetic frame (like `5703`) inland.
+By default, Transformez decays tidal transformations inland using physical distance from the coastline. New workflows should use `--decay-distance` and `--buffer-distance`, which produce consistent behavior regardless of raster resolution.
 
-If you are modeling tsunamis, storm surge, or sea-level rise, you often need your "water level zero" to remain mathematically constant infinitely inland to accurately calculate runup over high terrain.
-
-To disable the inland decay and force continuous extrapolation of the coastal shift, set `--decay-pixels 0`:
+Some tsunami, storm-surge, and inundation workflows instead require the coastal transformation to continue across all terrain that may become wetted during the simulation. For those cases, disable inland decay with:
 
 ```bash
-# Transform a high-res coastal DEM for Tsunami runup modeling (infinite inland extrapolation)
-transformez raster my_coastal_dem.tif -I 5703 -O mhw --decay-pixels 0
+transformez raster my_coastal_dem.tif \
+    -I 5703 -O mhw \
+    --extrapolate-inland
 ```
+
+`--decay-pixels` remains available for backward compatibility but is deprecated for new workflows.x

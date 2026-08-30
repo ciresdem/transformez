@@ -34,10 +34,10 @@ from typing import List, Union, Optional, Tuple, Any
 import datetime
 
 from .transform import VerticalTransform
-from .definitions import Datums
 from .grid_engine import GridWriter, GridEngine
 from .srs import SRSParser
-from .utils import RasterQuery
+from .utils import RasterQuery, UNITS
+from .reference.adapter import adapt_reference
 
 from fetchez.spatial import parse_region, Region
 from fetchez import utils
@@ -45,30 +45,6 @@ from fetchez import utils
 from transformez import __version__
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_datum(datum_arg: str) -> Tuple[Optional[int], Optional[str]]:
-    """Helper to parse compound datum strings (e.g. '5703:g2012b').
-
-    Args:
-        datum_arg: Datum string, possibly with geoid suffix.
-
-    Returns:
-        Tuple of (EPSG code, optional geoid name).
-    """
-
-    if not datum_arg:
-        return None, None
-
-    s = str(datum_arg)
-    if ":" in s:
-        parts = s.split(":")
-        geoid_part = parts[1]
-        geoid = geoid_part.split("=")[1] if "geoid=" in geoid_part else geoid_part
-
-        return Datums.get_vdatum_by_name(parts[0]), geoid
-
-    return Datums.get_vdatum_by_name(s), None
 
 
 def plot_grid(
@@ -194,11 +170,11 @@ def generate_grid(
         logger.error(f"Invalid increment '{increment}': {e}")
         raise
 
-    epsg_in, geoid_in = _parse_datum(datum_in)
-    epsg_out, geoid_out = _parse_datum(datum_out)
+    src_ref = adapt_reference(datum_in)
+    dst_ref = adapt_reference(datum_out)
 
-    if epsg_in is None or epsg_out is None:
-        raise ValueError(f"Invalid datum specified: {datum_in} -> {datum_out}")
+    if src_ref.vertical is None or dst_ref.vertical is None:
+        raise ValueError("A vertical reference is required.")
 
     if decay_distance_m is not None and decay_distance_m < 0:
         raise ValueError("decay_distance_m must be >= 0")
@@ -213,12 +189,12 @@ def generate_grid(
         region=region_obj,
         nx=nx,
         ny=ny,
-        epsg_in=epsg_in,
-        epsg_out=epsg_out,
-        geoid_in=geoid_in,
-        geoid_out=geoid_out,
-        epoch_in=epoch_in,
-        epoch_out=epoch_out,
+        epsg_in=src_ref.vertical.epsg,
+        epsg_out=dst_ref.vertical.epsg,
+        geoid_in=src_ref.vertical.geoid,
+        geoid_out=dst_ref.vertical.geoid,
+        epoch_in=str(src_ref.coordinate_epoch) or str(epoch_in),
+        epoch_out=str(dst_ref.coordinate_epoch) or str(epoch_out),
         decay_pixels=decay_pixels,
         decay_distance_m=decay_distance_m,
         buffer_distance_m=buffer_distance_m,
@@ -259,6 +235,8 @@ def transform_raster(
     input_raster: str,
     datum_in: str,
     datum_out: str,
+    epoch_in: str = "2010.0",
+    epoch_out: str = "2010.0",
     decay_pixels: int = 100,
     decay_distance_m: Optional[float] = None,
     buffer_distance_m: Optional[float] = None,
@@ -278,6 +256,8 @@ def transform_raster(
         input_raster: Path to the input DEM.
         datum_in: Source datum of the DEM.
         datum_out: Target datum for the output DEM.
+        epoch_in: Source epoch (e.g., '2010.0').
+        epoch_out: Target epoch (e.g., '2010.0').
         output_raster: Path to save the transformed DEM. Auto-named if None.
         decay_pixels: Legacy pixel-based inland decay distance.
         decay_distance_m: Physical inland decay distance in meters. When set,
@@ -336,21 +316,20 @@ def transform_raster(
         )
         vt_nx, vt_ny = nx, ny
 
-    epsg_in, geoid_in = _parse_datum(datum_in)
-    epsg_out, geoid_out = _parse_datum(datum_out)
+    src_ref = adapt_reference(datum_in)
+    dst_ref = adapt_reference(datum_out)
+
+    if src_ref.vertical is None or dst_ref.vertical is None:
+        raise ValueError("A vertical reference is required.")
 
     if z_unit_in == "auto":
-        z_unit_in = Datums.get_unit(epsg_in)
+        z_unit_in = src_ref.vertical.reference.unit_name
 
     if z_unit_out == "auto":
-        z_unit_out = Datums.get_unit(epsg_out)
+        z_unit_out = dst_ref.vertical.reference.unit_name
 
     if z_unit_in != "m" or z_unit_out != "m":
         logger.info(f"Auto-detected Unit Conversion: {z_unit_in} -> {z_unit_out}")
-
-    if epsg_in is None or epsg_out is None:
-        logger.error(f"Invalid datum specified: {datum_in} -> {datum_out}")
-        return None
 
     if not output_raster:
         base, ext = os.path.splitext(input_raster)
@@ -369,10 +348,12 @@ def transform_raster(
         region=region_obj,
         nx=vt_nx,
         ny=vt_ny,
-        epsg_in=epsg_in,
-        epsg_out=epsg_out,
-        geoid_in=geoid_in,
-        geoid_out=geoid_out,
+        epsg_in=src_ref.vertical.epsg,
+        epsg_out=dst_ref.vertical.epsg,
+        geoid_in=src_ref.vertical.geoid,
+        geoid_out=dst_ref.vertical.geoid,
+        epoch_in=str(src_ref.coordinate_epoch) or str(epoch_in),
+        epoch_out=str(dst_ref.coordinate_epoch) or str(epoch_out),
         decay_pixels=decay_pixels,
         decay_distance_m=decay_distance_m,
         buffer_distance_m=buffer_distance_m,
@@ -483,8 +464,8 @@ class PointTransformer:
 
         self.raster_query = RasterQuery(self.grid_path) if self.grid_path else None
 
-        self.factor_in = Datums.get_unit_factor(z_unit_in)
-        self.factor_out = Datums.get_unit_factor(z_unit_out)
+        self.factor_in = UNITS.get_unit_factor_m(z_unit_in)
+        self.factor_out = UNITS.get_unit_factor_m(z_unit_out)
 
     def transform(
         self,
@@ -552,6 +533,8 @@ def prefetch_region(
     Returns:
         True if prefetching succeeded, False otherwise.
     """
+
+    from .definitions import Datums
 
     if isinstance(region, Region):
         region_obj = region
@@ -629,8 +612,11 @@ def prefetch_region(
                     logger.warning(f"    - Skipping Global '{proxy_name}': {e}")
 
         else:
-            epsg_in, geoid_in = _parse_datum(datum_in) if datum_in else (4979, None)
-            epsg_out, geoid_out = _parse_datum(datum_out) if datum_out else (6319, None)
+            src_ref = adapt_reference(datum_in)
+            dst_ref = adapt_reference(datum_out)
+
+            if src_ref.vertical is None or dst_ref.vertical is None:
+                raise ValueError("A vertical reference is required.")
 
             logger.info(
                 f"Mode: TARGETED PREFETCH for chain ({datum_in or 'WGS84'} ➔ {datum_out or 'NAD83'})..."
@@ -640,10 +626,10 @@ def prefetch_region(
                 region=region_obj,
                 nx=vt_nx,
                 ny=vt_ny,
-                epsg_in=epsg_in or 4979,
-                epsg_out=epsg_out or 6319,
-                geoid_in=geoid_in,
-                geoid_out=geoid_out,
+                epsg_in=src_ref.vertical.epsg or 4979,
+                epsg_out=dst_ref.vertical.epsg or 6319,
+                geoid_in=src_ref.vertical.geoid,
+                geoid_out=dst_ref.vertical.geoid,
                 cache_dir=cache_dir,
                 verbose=verbose,
             )

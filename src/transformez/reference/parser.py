@@ -22,7 +22,16 @@ from .bindings import CUSTOM_REGISTRY
 logger = logging.getLogger(__name__)
 
 CUSTOM_REFERENCE_PREFIXES = {"tidal", "vdatum", "global", "model", "local"}
-LEGACY_ALIASES = {"mllw": "vdatum:mllw", "lat": "global:lat"}
+LEGACY_ALIASES = {
+    "msl": "vdatum:msl",
+    "mlw": "vdatum:mlw",
+    "mllw": "vdatum:mllw",
+    "mhw": "vdatum:mhw",
+    "mhhw": "vdatum:mhhw",
+    "mss": "global:mss",
+    "lat": "global:lat",
+    "hat": "global:hat",
+}
 
 
 class ReferenceInputError(ValueError):
@@ -125,7 +134,8 @@ def parse_reference_mapping(mapping: Mapping[str, Any]) -> ParsedReference:
 
     horz_val = mapping.get("horizontal")
     vert_val = mapping.get("vertical")
-    epoch_val = mapping.get("epoch")
+    epoch_val = mapping.get("coordinate_epoch", mapping.get("epoch"))
+    # geoid_val = mapping.get("geoid")
 
     horz_ref = parse_reference(horz_val) if horz_val else None
     vert_ref = parse_reference(vert_val) if vert_val else None
@@ -182,31 +192,6 @@ def parse_reference(
     if legacy_id:
         warn_legacy_alias(text, legacy_id)
         text = legacy_id
-
-    # if "+" in text:
-    #     horz_str, vert_str = text.split("+", 1)
-
-    #     # Recursively parse both halves
-    #     horz_ref = parse_reference(horz_str.strip())
-    #     vert_ref = parse_reference(vert_str.strip())
-
-    #     # Ensure they don't contain conflicting dimensions
-    #     if horz_ref.vertical_specified:
-    #         raise UnsupportedReferenceError(
-    #             f"Left side of '+' ({horz_str}) already contains a vertical component."
-    #         )
-    #     if vert_ref.horizontal_specified:
-    #         raise UnsupportedReferenceError(
-    #             f"Right side of '+' ({vert_str}) contains an unexpected horizontal component."
-    #         )
-
-    #     return ParsedReference(
-    #         horizontal=horz_ref.horizontal,
-    #         vertical=vert_ref.vertical,
-    #         horizontal_specified=True,
-    #         vertical_specified=True,
-    #         source_text=text,
-    #     )
 
     prefix = text.partition(":")[0].casefold()
     if prefix in CUSTOM_REFERENCE_PREFIXES:
