@@ -57,8 +57,6 @@ class SRSParser:
         max_vdatum_extension_m: Optional[float] = DEFAULT_MAX_VDATUM_EXTENSION_M,
         **kwargs: Any,
     ):
-        # self.src_ref = parse_reference(src_srs)
-        # self.dst_ref = parse_reference(dst_srs)
         self.src_srs_input = src_srs
         self.dst_srs_input = dst_srs
         self.region = region
@@ -79,11 +77,6 @@ class SRSParser:
             "trans_fn": None,
         }
 
-        # self.tc["src_crs"] = self.src_ref
-        # self.tc["dst_crs"] = self.dst_ref
-        # self._resolve_components()
-        # self.tc["src_vert_epsg"] = legacy_vertical_spec(self.src_ref.vertical)
-        # self.tc["dst_vert_epsg"] = legacy_vertical_spec(self.dst_ref.vertical)
         self._parse_srs()
 
     def _extract_geoid(self, srs_str: str) -> Tuple[str, Optional[str]]:

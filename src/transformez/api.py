@@ -37,8 +37,7 @@ from .transform import VerticalTransform
 from .grid_engine import GridWriter, GridEngine
 from .srs import SRSParser
 from .utils import RasterQuery, UNITS
-from .reference.parser import parse_reference
-from .reference.adapter import adapt_parsed_reference
+from .reference.adapter import adapt_reference
 
 from fetchez.spatial import parse_region, Region
 from fetchez import utils
@@ -171,8 +170,8 @@ def generate_grid(
         logger.error(f"Invalid increment '{increment}': {e}")
         raise
 
-    src_ref = adapt_parsed_reference(parse_reference(datum_in))
-    dst_ref = adapt_parsed_reference(parse_reference(datum_out))
+    src_ref = adapt_reference(datum_in)
+    dst_ref = adapt_reference(datum_out)
 
     if src_ref.vertical is None or dst_ref.vertical is None:
         raise ValueError("A vertical reference is required.")
@@ -195,7 +194,7 @@ def generate_grid(
         geoid_in=src_ref.vertical.geoid,
         geoid_out=dst_ref.vertical.geoid,
         epoch_in=src_ref.coordinate_epoch or epoch_in,
-        epoch_out=src_ref.coordinate_epoch or epoch_out,
+        epoch_out=dst_ref.coordinate_epoch or epoch_out,
         decay_pixels=decay_pixels,
         decay_distance_m=decay_distance_m,
         buffer_distance_m=buffer_distance_m,
@@ -317,17 +316,17 @@ def transform_raster(
         )
         vt_nx, vt_ny = nx, ny
 
-    src_ref = adapt_parsed_reference(parse_reference(datum_in))
-    dst_ref = adapt_parsed_reference(parse_reference(datum_out))
+    src_ref = adapt_reference(datum_in)
+    dst_ref = adapt_reference(datum_out)
 
     if src_ref.vertical is None or dst_ref.vertical is None:
         raise ValueError("A vertical reference is required.")
 
     if z_unit_in == "auto":
-        src_ref.vertical.reference.unit_name
+        z_unit_in = src_ref.vertical.reference.unit_name
 
     if z_unit_out == "auto":
-        dst_ref.vertical.reference.unit_name
+        z_unit_out = dst_ref.vertical.reference.unit_name
 
     if z_unit_in != "m" or z_unit_out != "m":
         logger.info(f"Auto-detected Unit Conversion: {z_unit_in} -> {z_unit_out}")
@@ -354,7 +353,7 @@ def transform_raster(
         geoid_in=src_ref.vertical.geoid,
         geoid_out=dst_ref.vertical.geoid,
         epoch_in=src_ref.coordinate_epoch or epoch_in,
-        epoch_out=src_ref.coordinate_epoch or epoch_out,
+        epoch_out=dst_ref.coordinate_epoch or epoch_out,
         decay_pixels=decay_pixels,
         decay_distance_m=decay_distance_m,
         buffer_distance_m=buffer_distance_m,
@@ -613,8 +612,8 @@ def prefetch_region(
                     logger.warning(f"    - Skipping Global '{proxy_name}': {e}")
 
         else:
-            src_ref = adapt_parsed_reference(parse_reference(datum_in))
-            dst_ref = adapt_parsed_reference(parse_reference(datum_out))
+            src_ref = adapt_reference(datum_in)
+            dst_ref = adapt_reference(datum_out)
 
             if src_ref.vertical is None or dst_ref.vertical is None:
                 raise ValueError("A vertical reference is required.")

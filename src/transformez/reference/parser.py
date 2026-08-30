@@ -24,8 +24,10 @@ logger = logging.getLogger(__name__)
 CUSTOM_REFERENCE_PREFIXES = {"tidal", "vdatum", "global", "model", "local"}
 LEGACY_ALIASES = {
     "msl": "vdatum:msl",
+    "mlw": "vdatum:mlw",
     "mllw": "vdatum:mllw",
     "mhw": "vdatum:mhw",
+    "mhhw": "vdatum:mhhw",
     "mss": "global:mss",
     "lat": "global:lat",
     "hat": "global:hat",
@@ -133,6 +135,7 @@ def parse_reference_mapping(mapping: Mapping[str, Any]) -> ParsedReference:
     horz_val = mapping.get("horizontal")
     vert_val = mapping.get("vertical")
     epoch_val = mapping.get("coordinate_epoch", mapping.get("epoch"))
+    # geoid_val = mapping.get("geoid")
 
     horz_ref = parse_reference(horz_val) if horz_val else None
     vert_ref = parse_reference(vert_val) if vert_val else None

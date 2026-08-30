@@ -33,9 +33,15 @@ def test_srs_compound_vertical_parsing():
 
 
 def test_srs_geoid_extraction_and_fallback():
-    """Ensure it extracts explicit geoids and falls back to definitions if omitted."""
+    """Ensure it extracts explicit geoids and falls back to definitions if omitted.
+
+    With the new parser we no longer accept the syntax such as `:g2012b`. Instead,
+    we have to use the mappting with, e.g.:
+    {geoid: "g2012b"}
+    """
     # 1. Explicit geoid extraction
     parser_explicit = SRSParser("EPSG:4326", "EPSG:4326+geoid:g2012b")
+    # parser_explicit = SRSParser("EPSG:4326", {"horizontal": "EPSG:4326", "vertical": "5703", "geoid": "g2012b"})
     assert parser_explicit.tc["dst_geoid"] == "g2012b"
 
     # 2. Implicit geoid fallback (5703 should default to g2018 per Datums)

@@ -209,10 +209,13 @@ class UNITS:
         "meter": 1.0,
         "metre": 1.0,
         "meters": 1.0,
-        "ft": 0.3048,  # International Foot
+        "metres": 1.0,
+        "ft": 0.3048,
         "foot": 0.3048,
-        "us-ft": 1200.0 / 3937.0,  # US Survey Foot
+        "feet": 0.3048,
+        "us-ft": 1200.0 / 3937.0,
         "us-foot": 1200.0 / 3937.0,
+        "us survey foot": 1200.0 / 3937.0,
     }
 
     @classmethod

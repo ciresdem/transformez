@@ -74,7 +74,7 @@ CUSTOM_VERTICAL_REFERENCES = {
     ),
     "vdatum:mhhw": VerticalReference(
         id="vdatum:mhhw",
-        name="NOAA VDatum Mean High Water",
+        name="NOAA VDatum Mean Higher High Water",
         kind=VerticalKind.TIDAL_HEIGHT,
         axis_direction=AxisDirection.UP,
         unit_name="metre",
@@ -154,7 +154,7 @@ OPERATION_BINDINGS = {
     "global:mss": OperationBinding(
         reference_id="global:mss",
         engine="global_model",
-        provider="DTU",
+        provider="dtu25",
         provider_datum="mss",
         native_frame="EPSG:4979",  # WGS84 Hub
         default_model=None,
