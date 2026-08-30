@@ -196,3 +196,36 @@ def export_cache(
     except Exception as e:
         logger.error(f"[EXPORT FATAL] Failed to export cache: {e}")
         return None
+
+
+class UNITS:
+    """Class to manage vertical unit conversions."""
+
+    # =========================================================================
+    # Unit Conversions (Multiplier to convert TO meters)
+    # =========================================================================
+    UNITS = {
+        "m": 1.0,
+        "meter": 1.0,
+        "metre": 1.0,
+        "meters": 1.0,
+        "ft": 0.3048,  # International Foot
+        "foot": 0.3048,
+        "us-ft": 1200.0 / 3937.0,  # US Survey Foot
+        "us-foot": 1200.0 / 3937.0,
+    }
+
+    @classmethod
+    def get_unit_factor_m(cls, unit_str: str) -> float:
+        """Get conversion factor from unit string to meters.
+
+        Args:
+            unit_str: Unit identifier (e.g., 'm', 'ft', 'us-ft').
+
+        Returns:
+            Multiplier to convert to meters. Defaults to 1.0 if unknown.
+        """
+
+        if not unit_str:
+            return 1.0
+        return cls.UNITS.get(unit_str.lower(), 1.0)

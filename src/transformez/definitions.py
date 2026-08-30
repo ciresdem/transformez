@@ -5,8 +5,11 @@
 transformez.definitions
 ~~~~~~~~~~~~~
 
-This file contains the various vertical datum transformation references
-and definitions.
+Legacy transformation registry.
+
+New reference identity and parsing logic belongs in transformez.reference.
+This module remains as an execution compatibility registry until the
+transformation planner is migrated.
 
 :copyright: (c) 2010-2026 Regents of the University of Colorado
 :license: MIT, see LICENSE for more details.

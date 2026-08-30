@@ -40,10 +40,50 @@ class HtdpFrameBinding:
 # THE METADATA (What the datum is)
 # =========================================================================
 CUSTOM_VERTICAL_REFERENCES = {
+    "vdatum:msl": VerticalReference(
+        id="vdatum:msl",
+        name="NOAA VDatum Mean Sea Level",
+        kind=VerticalKind.TIDAL_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
     "vdatum:mllw": VerticalReference(
         id="vdatum:mllw",
         name="NOAA VDatum Mean Lower Low Water",
         kind=VerticalKind.TIDAL_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "vdatum:mlw": VerticalReference(
+        id="vdatum:mlw",
+        name="NOAA VDatum Mean Low Water",
+        kind=VerticalKind.TIDAL_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "vdatum:mhw": VerticalReference(
+        id="vdatum:mhw",
+        name="NOAA VDatum Mean High Water",
+        kind=VerticalKind.TIDAL_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "vdatum:mhhw": VerticalReference(
+        id="vdatum:mhhw",
+        name="NOAA VDatum Mean High Water",
+        kind=VerticalKind.TIDAL_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "global:mss": VerticalReference(
+        id="global:mss",
+        name="Mean Sea Surface (Global Proxy)",
+        kind=VerticalKind.MODEL_SURFACE,
         axis_direction=AxisDirection.UP,
         unit_name="metre",
         unit_to_metre=1.0,
@@ -56,6 +96,14 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    "global:hat": VerticalReference(
+        id="global:hat",
+        name="Highest Astronomical Tide (Global Proxy)",
+        kind=VerticalKind.MODEL_SURFACE,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
 }
 
 
@@ -63,6 +111,14 @@ CUSTOM_VERTICAL_REFERENCES = {
 # THE EXECUTION INSTRUCTIONS (How to shift it)
 # =========================================================================
 OPERATION_BINDINGS = {
+    "vdatum:msl": OperationBinding(
+        reference_id="vdatum:msl",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="msl",
+        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        default_model="geoid:g2018",
+    ),
     "vdatum:mllw": OperationBinding(
         reference_id="vdatum:mllw",
         engine="vdatum_grid",
@@ -71,11 +127,51 @@ OPERATION_BINDINGS = {
         native_frame="EPSG:6319",  # NAD83(2011) Hub
         default_model="geoid:g2018",
     ),
+    "vdatum:mlw": OperationBinding(
+        reference_id="vdatum:mlw",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="mlw",
+        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        default_model="geoid:g2018",
+    ),
+    "vdatum:mhhw": OperationBinding(
+        reference_id="vdatum:mhhw",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="mhhw",
+        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        default_model="geoid:g2018",
+    ),
+    "vdatum:mhw": OperationBinding(
+        reference_id="vdatum:mhw",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="mhw",
+        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        default_model="geoid:g2018",
+    ),
+    "global:mss": OperationBinding(
+        reference_id="global:mss",
+        engine="global_model",
+        provider="DTU",
+        provider_datum="mss",
+        native_frame="EPSG:4979",  # WGS84 Hub
+        default_model=None,
+    ),
     "global:lat": OperationBinding(
         reference_id="global:lat",
         engine="global_model",
         provider="fes2014",
         provider_datum="lat",
+        native_frame="EPSG:4979",  # WGS84 Hub
+        default_model=None,
+    ),
+    "global:hat": OperationBinding(
+        reference_id="global:hat",
+        engine="global_model",
+        provider="fes2014",
+        provider_datum="hat",
         native_frame="EPSG:4979",  # WGS84 Hub
         default_model=None,
     ),
@@ -112,3 +208,15 @@ class CustomRegistry:
 
 
 CUSTOM_REGISTRY = CustomRegistry()
+
+
+def get_operation_binding(
+    reference: VerticalReference,
+) -> OperationBinding | None:
+    return OPERATION_BINDINGS.get(reference.id.casefold())
+
+
+def get_htdp_frame_binding(
+    reference_id: str,
+) -> HtdpFrameBinding | None:
+    return HTDP_FRAME_BINDINGS.get(reference_id.upper())
