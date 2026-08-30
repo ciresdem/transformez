@@ -39,6 +39,16 @@ flowchart TD
 | WGS84      | MLLW     | WGS84    | Negative (↑ to ↓)       |
 | LAT        | MHHW     | WGS84    | Depends on location     |
 
+
+## Reference Resolution
+
+Before a transformation path is constructed, Transformez resolves user-supplied coordinate-reference inputs into separate horizontal and vertical components.
+
+Standard CRS definitions are resolved through PROJ, while Transformez-specific tidal and model surfaces use explicit namespaced identifiers such as `vdatum:mllw` and `global:lat`. Legacy shorthand names are normalized to these references for backward compatibility.
+
+Reference resolution is separate from transformation execution, where parsing determines what a reference represents and the transformation engine determines how to connect the resolved source and destination through the appropriate geodetic models and hubs.
+
+
 ## The Dynamic Hub-and-Spoke Model
 Transformez routes complex, multi-step vertical conversions (e.g., moving from a local tidal datum directly to a global geoid) by using an autonomous **"Hub-and-Spoke"** system
 
