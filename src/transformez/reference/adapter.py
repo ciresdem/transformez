@@ -14,6 +14,7 @@ VerticalReference / OperationBinding directly.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
@@ -24,6 +25,9 @@ from transformez.definitions import Datums
 from .bindings import OperationBinding, get_operation_binding
 from .types import ParsedReference, VerticalReference
 from .parser import parse_reference
+
+
+logger = logging.getLogger(__name__)
 
 
 class LegacyAdapterError(ValueError):
