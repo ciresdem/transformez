@@ -12,15 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Coastal Context dataclass to hold context values
 - test script to validate refactor
 - grid_engine.build_coastal_context function to build the coastal context dataclass.
+- Added the new transformez.reference foundation for typed coordinate-reference handling, including VerticalReference, ParsedReference, and ResolvedReference models.
+- Added reference.parser for centralized parsing and decomposition of EPSG, compound, horizontal, vertical, and custom namespaced references.
+- Added custom reference bindings for NOAA VDatum tidal surfaces and global tidal/model surfaces.
+- Added reference.adapter as a temporary compatibility bridge between the new typed reference system and the existing definitions-driven transformation engine.
+- Added compatibility handling for legacy Transformez/CUDEM geoid syntax such as EPSG:4326+5703+geoid:g2012b.
 
 ### Changed
 - Updated CLI options to use new dist2coast km decay and blend options
 - Process blends and decays using the km field from dist2coast instead of edt.
 - Updated srs.py to use the new coastal context and expose their options.
+- Updated api.py to resolve datum inputs through the new reference parser and legacy adapter rather than parsing datum identifiers directly through definitions.py.
+- Updated generate_grid(), transform_raster(), and prefetch_region() operations to consume normalized reference metadata from the adapter.
+- Vertical CRS units are now derived from typed reference metadata when automatic unit detection is requested.
+- Moved generic vertical unit conversion definitions out of definitions.py and into utils.py, separating unit conversion from datum-registry metadata.
+- Legacy tidal datum names such as mllw, mlw, mhw, mhhw, msl, lat, hat, and mss now resolve through explicit namespaced reference aliases.
 
 ### Fixed
 - Refactor dist2coast usage to fix a bug that would burn the dist2coast edges onto the raster result. This was due to performing an edt distance transform from the low-res dist2coast raster, treating it as a mask instead of a distance field. Update allows setting the distance by km instead of number of pixels and smooths the 'zero' field to get proper transitions.
 - Since dist2coast sets it's nodata value to zero, we were incorrectly masking the dist2coast raster by ignoring the zero values (coastline), we now have an option to ignore the nodata value in grid_engine.
+- Improved validation of datum/reference inputs by resolving standard EPSG identifiers through PROJ before adapting them to the legacy transformation engine.
+- Preserved compatibility with existing geoid-qualified datum strings while isolating legacy syntax handling from the new reference parser.
 
 ## [0.6.0] - 2026-08-27
 
