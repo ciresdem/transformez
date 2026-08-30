@@ -59,13 +59,13 @@ class HTDP:
 
     def __init__(
         self,
-        htdp_bin: Optional[str] = "htdp",
+        htdp_bin: Optional[str] = None,
         version: str = "3.5.0",
         verbose: bool = True,
     ):
         self.version = version
         self.verbose = verbose
-        self.htdp_bin: Optional[str] = htdp_bin or resolve_htdp_path(self.version)
+        self.htdp_bin = htdp_bin or resolve_htdp_path(self.version)
         self.has_htdp: bool = self.htdp_bin is not None
 
         if not self.has_htdp:
@@ -157,7 +157,8 @@ class HTDP:
             )
 
             # Run HTDP
-            self.run_cmd(ctl_fn)
+            if not self.run_cmd(ctl_fn):
+                raise RuntimeError("HTDP execution failed.")
 
             # Parse Output & Build Grid
             if not os.path.exists(out_fn):
