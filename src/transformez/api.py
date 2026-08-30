@@ -40,7 +40,7 @@ from .utils import RasterQuery, UNITS
 from .reference.adapter import adapt_reference
 
 from fetchez.spatial import parse_region, Region
-from fetchez import utils
+from fetchez.utils import str_or, str2inc
 
 from transformez import __version__
 
@@ -163,7 +163,7 @@ def generate_grid(
         region_obj = regions[0]
 
     try:
-        inc_val = utils.str2inc(str(increment))
+        inc_val = str2inc(str(increment))
         nx = int(region_obj.width / inc_val)
         ny = int(region_obj.height / inc_val)
     except Exception as e:
@@ -193,8 +193,8 @@ def generate_grid(
         epsg_out=dst_ref.vertical.epsg,
         geoid_in=src_ref.vertical.geoid,
         geoid_out=dst_ref.vertical.geoid,
-        epoch_in=str(src_ref.coordinate_epoch) or str(epoch_in),
-        epoch_out=str(dst_ref.coordinate_epoch) or str(epoch_out),
+        epoch_in=str_or(src_ref.coordinate_epoch, epoch_in),
+        epoch_out=str_or(dst_ref.coordinate_epoch, epoch_out),
         decay_pixels=decay_pixels,
         decay_distance_m=decay_distance_m,
         buffer_distance_m=buffer_distance_m,
@@ -352,8 +352,8 @@ def transform_raster(
         epsg_out=dst_ref.vertical.epsg,
         geoid_in=src_ref.vertical.geoid,
         geoid_out=dst_ref.vertical.geoid,
-        epoch_in=str(src_ref.coordinate_epoch) or str(epoch_in),
-        epoch_out=str(dst_ref.coordinate_epoch) or str(epoch_out),
+        epoch_in=str_or(src_ref.coordinate_epoch, epoch_in),
+        epoch_out=str_or(dst_ref.coordinate_epoch, epoch_out),
         decay_pixels=decay_pixels,
         decay_distance_m=decay_distance_m,
         buffer_distance_m=buffer_distance_m,

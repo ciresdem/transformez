@@ -15,7 +15,7 @@ import os
 import subprocess
 import logging
 import shlex
-from typing import Tuple, Optional, Union, List
+from typing import Tuple, Optional, Union, List, Any
 
 import numpy as np
 import rasterio
@@ -196,6 +196,23 @@ def export_cache(
     except Exception as e:
         logger.error(f"[EXPORT FATAL] Failed to export cache: {e}")
         return None
+
+
+def normalize_epoch(value: Any, default="2010.0") -> str:
+    if value is None:
+        return default
+
+    text = str(value).strip()
+
+    if not text or text.casefold() in {"none", "null"}:
+        return default
+
+    try:
+        float(text)
+    except ValueError as exc:
+        raise ValueError(f"Invalid coordinate epoch: {value!r}") from exc
+
+    return text
 
 
 class UNITS:

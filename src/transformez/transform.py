@@ -24,6 +24,7 @@ from fetchez.utils import float_or
 
 from .definitions import Datums
 from .grid_engine import CoastalContext, GridEngine, GridGen, GridCorruptionError
+from .utils import normalize_epoch
 
 logger = logging.getLogger(__name__)
 
@@ -102,8 +103,8 @@ class VerticalTransform:
         self.geoid_in = geoid_in or Datums.get_default_geoid(self.epsg_in)
         self.geoid_out = geoid_out or Datums.get_default_geoid(self.epsg_out)
 
-        self.epoch_in = str(epoch_in) if epoch_in else "2010.0"
-        self.epoch_out = str(epoch_out) if epoch_out else "2010.0"
+        self.epoch_in = normalize_epoch(epoch_in)
+        self.epoch_out = normalize_epoch(epoch_out)
 
         self.ref_in = Datums.get_frame_type(self.epsg_in)
         self.ref_out = Datums.get_frame_type(self.epsg_out)
@@ -426,6 +427,13 @@ class VerticalTransform:
             )
             tool = htdp.HTDP(version="3.5.0", verbose=False)
 
+            logger.debug(
+                "HTDP request: EPSG:%s @ %r -> EPSG:%s @ %r",
+                epsg_from,
+                epoch_from,
+                epsg_to,
+                epoch_to,
+            )
             grid = tool.run_grid(
                 self.region,
                 self.nx,
@@ -451,7 +459,7 @@ class VerticalTransform:
                     self.ny,
                     epsg_from,
                     epsg_to,
-                    str(epoch_from),
+                    str(epoch_to),
                     str(epoch_to),
                 )
 
