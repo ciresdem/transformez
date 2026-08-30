@@ -13,6 +13,8 @@
   <a href="https://badge.fury.io/py/transformez"><img src="https://badge.fury.io/py/transformez.svg" alt="PyPI version"></a>
   <a href="https://anaconda.org/conda-forge/transformez"><img src="https://img.shields.io/conda/vn/conda-forge/transformez.svg" alt="Conda Version"></a>
   <a href="https://cudem.zulip.org"><img src="https://img.shields.io/badge/zulip-join_chat-brightgreen.svg" alt="Project Chat"></a>
+  <a href="https://doi.org/10.5281/zenodo.22131424"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22131423.svg" alt="DOI"></a>
+
 </p>
 
 **Transformez** is a standalone Python engine for converting geospatial data between vertical datums (e.g., `MLLW` ↔ `NAVD88` ↔ `Ellipsoid`).
