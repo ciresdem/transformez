@@ -357,16 +357,18 @@ def adapt_reference(value: Any) -> LegacyReferenceSpec:
         return adapt_parsed_reference(parse_reference(value))
     else:
         legacy_ref = adapt_parsed_reference(parse_reference(clean_val))
-        vertical = LegacyVerticalSpec(
-            reference=legacy_ref.vertical.reference,
-            epsg=legacy_ref.vertical.epsg,
-            ref_type=legacy_ref.vertical.ref_type,
-            native_epsg=legacy_ref.vertical.native_epsg,
-            binding=legacy_ref.vertical.binding,
-            geoid=geoid_val,
-        )
-        return LegacyReferenceSpec(
-            horizontal=legacy_ref.horizontal,
-            vertical=vertical,
-            coordinate_epoch=legacy_ref.coordinate_epoch,
-        )
+        if legacy_ref is not None and legacy_ref.vertical is not None:
+            vertical = LegacyVerticalSpec(
+                reference=legacy_ref.vertical.reference,
+                epsg=legacy_ref.vertical.epsg,
+                ref_type=legacy_ref.vertical.ref_type,
+                native_epsg=legacy_ref.vertical.native_epsg,
+                binding=legacy_ref.vertical.binding,
+                geoid=geoid_val,
+            )
+            return LegacyReferenceSpec(
+                horizontal=legacy_ref.horizontal,
+                vertical=vertical,
+                coordinate_epoch=legacy_ref.coordinate_epoch,
+            )
+        return legacy_ref
