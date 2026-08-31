@@ -383,6 +383,7 @@ class PointTransformer:
             region=region,
             cache_dir=cache_dir,
         )
+        self.raster_query: RasterQuery | None
 
         self.horz_transformer = components.horizontal
 
