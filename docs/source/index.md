@@ -70,11 +70,32 @@ shift_array = transformez.generate_grid(
     out_fn="india_shift.tif"  # Optional: Save to disk
 )
 
+
+# Use generation.build_shift_grid to access the ShiftGrid object directly
+from transformez.generation import build_shift_grid
+
+shift = build_shift_grid(
+    region=[-124.1, -124.0, 44.5, 44.6],
+    increment="3s",
+    datum_in="vdatum:mllw",
+    datum_out="EPSG:5703",
+)
+
+print(shift.crs)
+print(shift.source_reference)
+print(shift.target_reference)
+
+shift.write("mllw_to_navd88.tif")
+
+utm_shift = shift.reproject("EPSG:32610")
+utm_shift.write("mllw_to_navd88_utm.tif")
+
+
 # Transform an Existing Raster
 # Applies the datum shift directly to a DEM and saves the result.
 out_file = transformez.transform_raster(
     input_raster="my_dem_mllw.tif",
-    datum_in="mllw",
+    datum_in="vdatum:mllw",
     datum_out="5703:g2012b",  # NAVD88 using specific GEOID12B
     decay_pixels=0,           # Set to 0 for infinite inland extrapolation (Modeling)
     output_raster="my_dem_navd88.tif"
