@@ -15,17 +15,26 @@ floating-point nodata leaks and spline ringing at data boundaries.
 
 import os
 import logging
+from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Mapping
 
 import numpy as np
 import rasterio
-from rasterio.warp import reproject, Resampling
-from rasterio.transform import from_bounds
+from rasterio.warp import (
+    calculate_default_transform,
+    reproject,
+    Resampling,
+)
+from rasterio.transform import from_bounds, Affine
 from scipy.ndimage import distance_transform_edt, gaussian_filter
 from scipy.interpolate import Rbf
 
+from pyproj import CRS
+
 from fetchez.spatial import Region, parse_region
+
+from .generation import ShiftGrid
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -578,30 +587,11 @@ class GridEngine:
     @staticmethod
     def apply_vertical_shift(
         src_dem: str,
-        shift_array: np.ndarray,
+        shift_grid: "ShiftGrid",
         dst_dem: str,
         z_unit_in: str = "m",
         z_unit_out: str = "m",
-        shift_transform: Optional[Any] = None,
-        shift_crs: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
     ) -> bool:
-        """Apply a vertical shift array to a source DEM using memory-safe windowed I/O.
-
-        Args:
-            src_dem: Path to input DEM.
-            shift_array: 2D shift grid (same projection as src_dem unless shift_transform given).
-            dst_dem: Path to output transformed DEM.
-            z_unit_in: Input DEM Z units ('m', 'ft', etc.).
-            z_unit_out: Output DEM Z units.
-            shift_transform: Transform matrix for shift_array (if different from src_dem).
-            shift_crs: CRS of shift_array (if different from src_dem).
-            tags: Metadata tags to apply to the transformed dem.
-
-        Returns:
-            True if successful, False otherwise.
-        """
-
         from .utils import UNITS
 
         factor_in = UNITS.get_unit_factor_m(z_unit_in)
@@ -609,6 +599,15 @@ class GridEngine:
 
         try:
             with rasterio.open(src_dem) as src:
+                if shift_grid.shape != (src.height, src.width):
+                    raise ValueError("ShiftGrid shape does not match source DEM.")
+
+                if CRS.from_user_input(shift_grid.crs) != CRS.from_user_input(src.crs):
+                    raise ValueError("ShiftGrid CRS does not match source DEM.")
+
+                if not shift_grid.transform.almost_equals(src.transform):
+                    raise ValueError("ShiftGrid transform does not match source DEM.")
+
                 profile = src.profile.copy()
                 profile.update(dtype="float32")
 
@@ -619,8 +618,7 @@ class GridEngine:
                 profile.update(nodata=nodata)
 
                 with rasterio.open(dst_dem, "w", **profile) as dst:
-                    if tags:
-                        dst.update_tags(**tags)
+                    dst.update_tags(**shift_grid.provenance)
 
                     for ji, window in dst.block_windows(1):
                         data_chunk = src.read(1, window=window).astype(np.float32)
@@ -633,28 +631,15 @@ class GridEngine:
                                 dst.write(data_chunk, 1, window=window)
                                 continue
 
-                        if shift_transform and shift_crs:
-                            window_transform = src.window_transform(window)
-                            local_shift = np.zeros(data_chunk.shape, dtype=np.float32)
+                        row_start = int(window.row_off)
+                        row_end = int(window.row_off + window.height)
+                        col_start = int(window.col_off)
+                        col_end = int(window.col_off + window.width)
 
-                            reproject(
-                                source=shift_array,
-                                destination=local_shift,
-                                src_transform=shift_transform,
-                                src_crs=shift_crs,
-                                dst_transform=window_transform,
-                                dst_crs=src.crs,
-                                resampling=Resampling.bilinear,
-                            )
-                        else:
-                            row_start = int(window.row_off)
-                            row_end = int(window.row_off + window.height)
-                            col_start = int(window.col_off)
-                            col_end = int(window.col_off + window.width)
-
-                            local_shift = shift_array[
-                                row_start:row_end, col_start:col_end
-                            ]
+                        local_shift = shift_grid.array[
+                            row_start:row_end,
+                            col_start:col_end,
+                        ]
 
                         if src.nodata is None or np.isnan(src.nodata):
                             valid_mask = (~np.isnan(data_chunk)) & (
@@ -666,7 +651,6 @@ class GridEngine:
                                 & (~np.isnan(data_chunk))
                                 & (~np.isnan(local_shift))
                             )
-                        # valid_mask = (data_chunk != nodata) & (~np.isnan(local_shift))
 
                         data_meters = data_chunk[valid_mask] * factor_in
                         data_shifted_meters = data_meters + local_shift[valid_mask]
@@ -680,18 +664,127 @@ class GridEngine:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to apply shift to DEM: {e}")
+            logger.exception(f"Failed to apply shift to DEM: {e}")
             return False
+
+    @staticmethod
+    def reproject_grid(
+        shift_array: np.ndarray,
+        src_transform: Affine,
+        src_region: Region,
+        src_crs: CRS | str,
+        dst_crs: CRS | str,
+        dst_region: Optional[Region] = None,
+        dst_shape: Optional[tuple[int, int]] = None,
+        resampling: Resampling = Resampling.bilinear,
+    ) -> Tuple[np.ndarray, Affine, Region]:
+        """Reproject a generated shift grid into another horizontal CRS.
+
+        Args:
+            shift_array:
+                Source array to reproject.
+            src_transform:
+                Rasterio transform.
+            src_crs:
+                Source horizontal CRS.
+            dst_crs:
+                Destination horizontal CRS.
+            dst_region:
+                Optional destination region. If omitted, an output extent and
+                resolution are calculated automatically.
+            dst_shape:
+                Optional destination shape as ``(height, width)``.
+                When supplied with ``dst_region``, the destination transform is
+                calculated directly from those bounds.
+            resampling:
+                Rasterio resampling method. Bilinear is appropriate for continuous
+                vertical-shift fields.
+
+        Returns:
+            A new ShiftGrid represented in ``dst_crs``.
+        """
+
+        dst_crs = CRS.from_user_input(dst_crs)
+        src_crs = CRS.from_user_input(src_crs)
+
+        if src_crs == dst_crs and dst_region is None and dst_shape is None:
+            return shift_array, src_transform, dst_region
+
+        src_height, src_width = shift_array.shape
+
+        src_bounds = src_region.to_bbox()
+
+        if dst_region is not None:
+            dst_bounds = dst_region.to_bbox()
+
+            if dst_shape is None:
+                dst_height = src_height
+                dst_width = src_width
+            else:
+                dst_height, dst_width = dst_shape
+
+            dst_transform = from_bounds(
+                dst_bounds[0],
+                dst_bounds[1],
+                dst_bounds[2],
+                dst_bounds[3],
+                dst_width,
+                dst_height,
+            )
+
+        else:
+            dst_transform, dst_width, dst_height = calculate_default_transform(
+                src_crs,
+                dst_crs,
+                src_width,
+                src_height,
+                *src_bounds,
+            )
+
+            dst_bounds = (
+                dst_transform.c,
+                dst_transform.f + dst_transform.e * dst_height,
+                dst_transform.c + dst_transform.a * dst_width,
+                dst_transform.f,
+            )
+
+            dst_region = Region(
+                dst_bounds[0],
+                dst_bounds[2],
+                dst_bounds[1],
+                dst_bounds[3],
+            )
+            dst_region.srs = dst_crs
+
+        dst_array = np.full(
+            (dst_height, dst_width),
+            np.nan,
+            dtype=np.float32,
+        )
+
+        reproject(
+            source=shift_array,
+            destination=dst_array,
+            src_transform=src_transform,
+            src_crs=src_crs,
+            dst_transform=dst_transform,
+            dst_crs=dst_crs,
+            src_nodata=np.nan,
+            dst_nodata=np.nan,
+            resampling=resampling,
+        )
+
+        return dst_array, dst_transform, dst_region
 
 
 class GridWriter:
     @staticmethod
     def write(
-        filename: str,
+        filename: str | Path,
         data: np.ndarray,
         region: Region | str,
         crs: Any = "EPSG:4326",
-        tags: Optional[Dict[str, str]] = None,
+        tags: Optional[Mapping[str, str] | Dict[str, str]] = None,
         transform: Optional[Any] = None,
         nodata: Optional[float] = None,
     ) -> str:
@@ -709,6 +802,7 @@ class GridWriter:
         Returns:
             Path to the written GeoTIFF.
         """
+        filename = str(filename)  # tmp, update to use Path
         dirname = os.path.dirname(filename)
         if dirname and not os.path.exists(dirname):
             os.makedirs(dirname)
