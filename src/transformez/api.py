@@ -29,22 +29,29 @@ Usage::
 
 import os
 import logging
+from pathlib import Path
 import numpy as np
 from typing import List, Union, Optional, Tuple, Any
-import datetime
+from dataclasses import dataclass
+
+from pyproj import Transformer
 
 from .transform import VerticalTransform
-from .grid_engine import GridWriter, GridEngine
-from .srs import SRSParser
+from .grid_engine import GridEngine
 from .utils import RasterQuery, UNITS
+from .reference.parser import parse_reference
 from .reference.adapter import adapt_reference
+from .generation import build_shift_grid, ShiftGrid
 
 from fetchez.spatial import parse_region, Region
-from fetchez.utils import str_or, str2inc
-
-from transformez import __version__
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class TransformationComponents:
+    horizontal: Transformer | None
+    vertical: ShiftGrid | None
 
 
 def plot_grid(
@@ -154,6 +161,41 @@ def generate_grid(
         2D vertical shift grid, or None if failed.
     """
 
+    shift_grid = build_shift_grid(
+        region,
+        increment,
+        datum_in,
+        datum_out,
+        epoch_in,
+        epoch_out,
+        decay_pixels,
+        decay_distance_m,
+        buffer_distance_m,
+        max_vdatum_extension_m,
+        extrapolate_inland,
+        cache_dir,
+        use_stations,
+        verbose,
+    )
+
+    if out_fn:
+        shift_grid.write(out_fn)
+        logger.info(f"Saved shift grid to {out_fn}")
+
+    return shift_grid.array
+
+
+def build_components(
+    src_srs: str,
+    dst_srs: str,
+    region: Region | str | list[float],
+    increment: str | float = "3s",
+    cache_dir: str | None = None,
+    **vertical_options: Any,
+) -> TransformationComponents:
+    source = parse_reference(src_srs)
+    target = parse_reference(dst_srs)
+
     if isinstance(region, Region):
         region_obj = region
     else:
@@ -162,73 +204,39 @@ def generate_grid(
             raise ValueError(f"Could not parse region: {region}")
         region_obj = regions[0]
 
-    try:
-        inc_val = str2inc(str(increment))
-        nx = int(region_obj.width / inc_val)
-        ny = int(region_obj.height / inc_val)
-    except Exception as e:
-        logger.error(f"Invalid increment '{increment}': {e}")
-        raise
+    horizontal = None
+    if source.horizontal and target.horizontal:
+        if source.horizontal != target.horizontal:
+            horizontal = Transformer.from_crs(
+                source.horizontal,
+                target.horizontal,
+                always_xy=True,
+            )
 
-    src_ref = adapt_reference(datum_in)
-    dst_ref = adapt_reference(datum_out)
+    vertical = None
+    if source.vertical or target.vertical:
+        if source.vertical is None or target.vertical is None:
+            raise ValueError("Both source and target vertical references are required.")
 
-    if src_ref.vertical is None or dst_ref.vertical is None:
-        raise ValueError("A vertical reference is required.")
+        vertical = build_shift_grid(
+            region=region_obj,
+            increment=increment,
+            datum_in=src_srs,
+            datum_out=dst_srs,
+            cache_dir=cache_dir,
+            **vertical_options,
+        )
 
-    if decay_distance_m is not None and decay_distance_m < 0:
-        raise ValueError("decay_distance_m must be >= 0")
+        if source.horizontal is not None:
+            vertical = vertical.reproject(
+                source.horizontal,
+                dst_region=region_obj,
+            )
 
-    if buffer_distance_m is not None and buffer_distance_m < 0:
-        raise ValueError("buffer_distance_m must be >= 0")
-
-    if max_vdatum_extension_m is not None and max_vdatum_extension_m < 0:
-        raise ValueError("max_vdatum_extension_m must be >= 0")
-
-    vt = VerticalTransform(
-        region=region_obj,
-        nx=nx,
-        ny=ny,
-        epsg_in=src_ref.vertical.epsg,
-        epsg_out=dst_ref.vertical.epsg,
-        geoid_in=src_ref.vertical.geoid,
-        geoid_out=dst_ref.vertical.geoid,
-        epoch_in=str_or(src_ref.coordinate_epoch, epoch_in),
-        epoch_out=str_or(dst_ref.coordinate_epoch, epoch_out),
-        decay_pixels=decay_pixels,
-        decay_distance_m=decay_distance_m,
-        buffer_distance_m=buffer_distance_m,
-        max_vdatum_extension_m=max_vdatum_extension_m,
-        extrapolate_inland=extrapolate_inland,
-        cache_dir=cache_dir,
-        use_stations=use_stations,
-        verbose=verbose,
+    return TransformationComponents(
+        horizontal=horizontal,
+        vertical=vertical,
     )
-    shift_array, _ = vt._vertical_transform()
-
-    if shift_array is None:
-        logger.error("Transformation failed to generate a grid.")
-        return None
-
-    if out_fn:
-        provenance = {
-            "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
-            "TIFFTAG_DATETIME": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
-            "TRANSFORMEZ_DATUM_IN": str(datum_in),
-            "TRANSFORMEZ_DATUM_OUT": str(datum_out),
-            "TRANSFORMEZ_DECAY_MODE": (
-                "physical" if decay_distance_m is not None else "pixels"
-            ),
-            "TRANSFORMEZ_DECAY_PIXELS": str(decay_pixels),
-            "TRANSFORMEZ_DECAY_DISTANCE_M": str(decay_distance_m),
-            "TRANSFORMEZ_BUFFER_DISTANCE_M": str(buffer_distance_m),
-            "TRANSFORMEZ_MAX_VDATUM_EXTENSION_M": str(max_vdatum_extension_m),
-        }
-
-        GridWriter.write(out_fn, shift_array, region_obj, tags=provenance)
-        logger.info(f"Saved shift grid to {out_fn}")
-
-    return shift_array
 
 
 def transform_raster(
@@ -280,165 +288,74 @@ def transform_raster(
     """
 
     import rasterio
-    from rasterio.warp import transform_bounds
-    from rasterio.transform import from_bounds
-    from fetchez.spatial import Region
 
     if not os.path.exists(input_raster):
         raise ValueError(f"Input raster not found: {input_raster}")
-
-    with rasterio.open(input_raster) as src:
-        native_crs = src.crs
-        native_bounds = src.bounds
-        native_transform = src.transform
-        nx, ny = src.width, src.height
-
-    is_projected = native_crs.is_projected if native_crs else False
-    if is_projected:
-        logger.info(
-            f"Projected CRS detected ({native_crs}). Extracting WGS84 envelope..."
-        )
-        w, s, e, n = transform_bounds(native_crs, "EPSG:4326", *native_bounds)
-
-        buffer = 0.05
-        region_obj = Region(w - buffer, e + buffer, s - buffer, n + buffer)
-        logger.info(f"Using WGS84 region: {region_obj}")
-
-        inc_deg = 3.0 / 3600.0
-        vt_nx = int((region_obj.xmax - region_obj.xmin) / inc_deg)
-        vt_ny = int((region_obj.ymax - region_obj.ymin) / inc_deg)
-    else:
-        region_obj = Region(
-            native_bounds.left,
-            native_bounds.right,
-            native_bounds.bottom,
-            native_bounds.top,
-        )
-        vt_nx, vt_ny = nx, ny
-
-    src_ref = adapt_reference(datum_in)
-    dst_ref = adapt_reference(datum_out)
-
-    if src_ref.vertical is None or dst_ref.vertical is None:
-        raise ValueError("A vertical reference is required.")
-
-    if z_unit_in == "auto":
-        z_unit_in = src_ref.vertical.reference.unit_name
-
-    if z_unit_out == "auto":
-        z_unit_out = dst_ref.vertical.reference.unit_name
-
-    if z_unit_in != "m" or z_unit_out != "m":
-        logger.info(f"Auto-detected Unit Conversion: {z_unit_in} -> {z_unit_out}")
 
     if not output_raster:
         base, ext = os.path.splitext(input_raster)
         output_raster = f"{base}_trans_{datum_out.replace(':', '_')}{ext}"
 
-    if decay_distance_m is not None and decay_distance_m < 0:
-        raise ValueError("decay_distance_m must be >= 0")
+    with rasterio.open(input_raster) as src:
+        native_crs = src.crs
+        native_bounds = src.bounds
+        # native_transform = src.transform
+        nx, ny = src.width, src.height
 
-    if buffer_distance_m is not None and buffer_distance_m < 0:
-        raise ValueError("buffer_distance_m must be >= 0")
+    region_obj = Region(
+        native_bounds.left,
+        native_bounds.right,
+        native_bounds.bottom,
+        native_bounds.top,
+    )
+    region_obj.srs = native_crs.to_epsg() or native_crs.to_wkt()
 
-    if max_vdatum_extension_m is not None and max_vdatum_extension_m < 0:
-        raise ValueError("max_vdatum_extension_m must be >= 0")
-
-    vt = VerticalTransform(
-        region=region_obj,
-        nx=vt_nx,
-        ny=vt_ny,
-        epsg_in=src_ref.vertical.epsg,
-        epsg_out=dst_ref.vertical.epsg,
-        geoid_in=src_ref.vertical.geoid,
-        geoid_out=dst_ref.vertical.geoid,
-        epoch_in=str_or(src_ref.coordinate_epoch, epoch_in),
-        epoch_out=str_or(dst_ref.coordinate_epoch, epoch_out),
-        decay_pixels=decay_pixels,
-        decay_distance_m=decay_distance_m,
-        buffer_distance_m=buffer_distance_m,
-        max_vdatum_extension_m=max_vdatum_extension_m,
-        extrapolate_inland=extrapolate_inland,
-        cache_dir=cache_dir,
-        use_stations=use_stations,
-        verbose=verbose,
+    shift_grid = build_shift_grid(
+        region_obj,
+        "3s",
+        datum_in,
+        datum_out,
+        epoch_in,
+        epoch_out,
+        decay_pixels,
+        decay_distance_m,
+        buffer_distance_m,
+        max_vdatum_extension_m,
+        extrapolate_inland,
+        cache_dir,
+        use_stations,
+        verbose,
     )
 
-    shift_array, _ = vt._vertical_transform()
+    if (
+        shift_grid.source_reference.vertical is not None
+        and shift_grid.target_reference.vertical is not None
+    ):
+        if z_unit_in == "auto":
+            z_unit_in = shift_grid.source_reference.vertical.unit_name
 
-    if shift_array is None:
-        logger.error("Failed to generate shift array for the raster bounds.")
-        return None
+        if z_unit_out == "auto":
+            z_unit_out = shift_grid.target_reference.vertical.unit_name
 
-    provenance = {
-        "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
-        "TIFFTAG_DATETIME": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
-        "TRANSFORMEZ_DATUM_IN": str(datum_in),
-        "TRANSFORMEZ_DATUM_OUT": str(datum_out),
-        "TRANSFORMEZ_DECAY_MODE": (
-            "physical" if decay_distance_m is not None else "pixels"
-        ),
-        "TRANSFORMEZ_DECAY_PIXELS": str(decay_pixels),
-        "TRANSFORMEZ_DECAY_DISTANCE_M": str(decay_distance_m),
-        "TRANSFORMEZ_BUFFER_DISTANCE_M": str(buffer_distance_m),
-        "TRANSFORMEZ_MAX_VDATUM_EXTENSION_M": str(max_vdatum_extension_m),
-    }
+    aligned_shift = shift_grid.reproject(
+        native_crs,
+        dst_region=region_obj,
+        dst_shape=(ny, nx),
+    )
 
-    if is_projected:
-        logger.debug("Streaming raster via windowed I/O...")
-        wgs_transform = from_bounds(
-            region_obj.xmin,
-            region_obj.ymin,
-            region_obj.xmax,
-            region_obj.ymax,
-            vt_nx,
-            vt_ny,
+    success = GridEngine.apply_vertical_shift(
+        src_dem=input_raster,
+        shift_grid=aligned_shift,
+        dst_dem=output_raster,
+        z_unit_in=z_unit_in,
+        z_unit_out=z_unit_out,
+    )
+
+    if save_shift:
+        shift_fn = Path(output_raster).with_name(
+            f"{Path(output_raster).stem}_shiftgrid.tif"
         )
-
-        success = GridEngine.apply_vertical_shift(
-            src_dem=input_raster,
-            shift_array=shift_array,
-            dst_dem=output_raster,
-            z_unit_in=z_unit_in,
-            z_unit_out=z_unit_out,
-            shift_transform=wgs_transform,
-            shift_crs="EPSG:4326",
-            tags=provenance,
-        )
-    else:
-        # If it's already in Geographic (EPSG:4326), just pass it standardly
-        success = GridEngine.apply_vertical_shift(
-            src_dem=input_raster,
-            shift_array=shift_array,
-            dst_dem=output_raster,
-            z_unit_in=z_unit_in,
-            z_unit_out=z_unit_out,
-            tags=provenance,
-        )
-
-    if save_shift and not is_projected:
-        shift_fn = f"{os.path.splitext(output_raster)[0]}_shiftgrid.tif"
-        logger.info(f"Saving aligned shift grid to {shift_fn}...")
-        with rasterio.open(
-            shift_fn,
-            "w",
-            driver="GTiff",
-            height=ny,
-            width=nx,
-            count=1,
-            dtype=shift_array.dtype,
-            crs=native_crs,
-            transform=native_transform,
-            nodata=-9999.0,
-        ) as dst:
-            if provenance:
-                dst.update_tags(**provenance)
-
-            dst.write(shift_array, 1)
-    elif save_shift and is_projected:
-        logger.warning(
-            "Skipping --save-shift: Cannot export a dense native shift grid for memory-safe projected runs."
-        )
+        aligned_shift.write(str(shift_fn))
 
     return output_raster if success else None
 
@@ -459,10 +376,22 @@ class PointTransformer:
         z_unit_out: str = "m",
         cache_dir: str = ".",
     ):
-        parser = SRSParser(src_srs, dst_srs, region=region, cache_dir=cache_dir)
-        self.horz_transformer, self.grid_path = parser.get_components()
 
-        self.raster_query = RasterQuery(self.grid_path) if self.grid_path else None
+        components = build_components(
+            src_srs,
+            dst_srs,
+            region=region,
+            cache_dir=cache_dir,
+        )
+
+        self.horz_transformer = components.horizontal
+
+        if components.vertical is not None:
+            self.grid_path = components.vertical.write()
+            self.raster_query = RasterQuery(str(self.grid_path))
+        else:
+            self.grid_path = None
+            self.raster_query = None
 
         self.factor_in = UNITS.get_unit_factor_m(z_unit_in)
         self.factor_out = UNITS.get_unit_factor_m(z_unit_out)
@@ -507,7 +436,10 @@ class PointTransformer:
                 z_out = float(z_out)
 
         # --- Horizontal Transformation ---
-        out_x, out_y = self.horz_transformer.transform(x, y)
+        if self.horz_transformer is not None:
+            out_x, out_y = self.horz_transformer.transform(x, y)
+        else:
+            out_x, out_y = x, y
 
         return out_x, out_y, z_out
 
