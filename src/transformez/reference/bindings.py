@@ -104,6 +104,14 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    "epsg:5703": VerticalReference(
+        id="epsg:5703",
+        name="NAVD88",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
 }
 
 
@@ -174,6 +182,14 @@ OPERATION_BINDINGS = {
         provider_datum="hat",
         native_frame="EPSG:4979",  # WGS84 Hub
         default_model=None,
+    ),
+    "epsg:5703": OperationBinding(
+        reference_id="epsg:5703",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="EPSG:6319",  # NAD83 Hub
+        default_model="geoid:g2018",
     ),
 }
 

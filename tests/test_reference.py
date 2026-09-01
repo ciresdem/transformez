@@ -7,7 +7,7 @@ from transformez.reference.parser import (
     InvalidReferenceError,
     UnsupportedReferenceError,
 )
-from transformez.reference.types import ParsedReference
+from transformez.reference.types import ParsedReference, VerticalKind, AxisDirection
 
 
 def test_parse_polymorphic_inputs():
@@ -96,3 +96,38 @@ def test_unsupported_compounds():
 
     with pytest.raises(UnsupportedReferenceError, match="Multiple vertical"):
         parse_reference(illegal_crs)
+
+
+def test_parse_3d_geographic_crs():
+    ref = parse_reference("EPSG:6319")
+
+    assert ref.horizontal is not None
+    assert ref.horizontal == CRS.from_epsg(6318)
+
+    assert ref.vertical is not None
+    assert ref.vertical.kind is VerticalKind.ELLIPSOIDAL_HEIGHT
+    assert ref.vertical.axis_direction is AxisDirection.UP
+    assert ref.vertical.unit_to_metre == 1.0
+
+
+def test_parse_wgs84_3d():
+    ref = parse_reference("EPSG:4979")
+
+    assert ref.horizontal == CRS.from_epsg(4326)
+    assert ref.vertical is not None
+    assert ref.vertical.kind is VerticalKind.ELLIPSOIDAL_HEIGHT
+
+
+def test_parse_2d_geographic_crs():
+    ref = parse_reference("EPSG:4326")
+
+    assert ref.horizontal is not None
+    assert ref.vertical is None
+
+
+def test_parse_vertical_crs():
+    ref = parse_reference("EPSG:5703")
+
+    assert ref.horizontal is None
+    assert ref.vertical is not None
+    assert ref.vertical.kind is VerticalKind.GRAVITY_RELATED_HEIGHT

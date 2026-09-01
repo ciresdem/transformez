@@ -61,11 +61,15 @@ def vertical_only(vert_ref: VerticalReference, text: str) -> ParsedReference:
     )
 
 
-def vertical_reference_from_crs(crs: CRS) -> VerticalReference:
+def vertical_reference_from_crs(
+    crs: CRS, kind: VerticalKind | None = None
+) -> VerticalReference:
     """Translates a pure PROJ Vertical CRS into our internal VerticalReference."""
 
     # Extract the vertical axis (usually the first and only axis in a vertical CRS)
-    axis = crs.axis_info[0]
+    # For a 3d CRS, the vertical access is [2], so we can get it either way by using
+    # [-1]
+    axis = crs.axis_info[-1]
 
     direction = (
         AxisDirection.DOWN if axis.direction.lower() == "down" else AxisDirection.UP
@@ -75,10 +79,13 @@ def vertical_reference_from_crs(crs: CRS) -> VerticalReference:
     auth = crs.to_authority()
     ref_id = f"{auth[0]}:{auth[1]}".lower() if auth else "proj:unknown"
 
+    if kind is None:
+        kind = VerticalKind.GRAVITY_RELATED_HEIGHT
+
     return VerticalReference(
         id=ref_id,
         name=crs.name,
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,  # A safe default for standard PROJ datums
+        kind=kind,
         axis_direction=direction,
         unit_name=axis.unit_name,
         unit_to_metre=axis.unit_conversion_factor,
@@ -109,8 +116,23 @@ def decompose_standard_crs(crs: CRS) -> ParsedReference:
             source_text=crs.to_string(),
         )
 
+    if len(crs.axis_info) == 3 and crs.is_geographic:
+        return ParsedReference(
+            horizontal=crs.to_2d(),
+            vertical=vertical_reference_from_crs(
+                crs,
+                kind=VerticalKind.ELLIPSOIDAL_HEIGHT,
+            ),
+            horizontal_specified=True,
+            vertical_specified=True,
+            source_text=crs.to_string(),
+        )
+
     if crs.is_vertical:
-        vert_ref = vertical_reference_from_crs(crs)
+        vert_ref = vertical_reference_from_crs(
+            crs,
+            kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        )
         return vertical_only(vert_ref, crs.to_string())
 
     return ParsedReference(
