@@ -122,6 +122,7 @@ extend-select = [  # Extend the default ruleset:
 [tool.ruff.lint.per-file-ignores]
 # Allow print() statements in modules where they are expected
 "src/transformez/htdp.py" = ["T201"]
+"src/transformez/__init__.py" = ["PTH"]
 "tests/**/*.py" = ["T201", "PTH"]
 
 [[tool.mypy.overrides]]

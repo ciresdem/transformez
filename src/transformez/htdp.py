@@ -270,7 +270,7 @@ class HTDP:
         with control_fn.open("w") as f:
             f.write(content)
 
-    def run_cmd(self, control_fn: str | Path | None = None) -> bool:
+    def run_cmd(self, control_fn: Path | None = None) -> bool:
         if not self.htdp_bin:
             logger.error("No HTDP binary available.")
             return False
@@ -279,10 +279,11 @@ class HTDP:
             if control_fn is None:
                 subprocess.run(
                     [self.htdp_bin],
+                    stdin=sys.stdin,
                     check=True,
                 )
             else:
-                with Path(control_fn).open("r") as stdin:
+                with control_fn.open("r") as stdin:
                     subprocess.run(
                         [self.htdp_bin],
                         stdin=stdin,
