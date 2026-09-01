@@ -72,15 +72,31 @@ class HTDP:
                 f"Run 'transformez htdp install --version {self.version}'"
             )
 
+    def _legacy_htdp_id_from_epsg(self, epsg: int) -> int:
+        """Look up HTDP numeric IDs (e.g., NAD83=1, WGS84=10)
+        transform.py passes ints (EPSGs), we need HTDP internal IDs
+        """
+
+        if epsg in Datums.HTDP:
+            return Datums.HTDP[epsg]["htdp_id"]
+        # Fallback for common codes if not in dictionary
+        if epsg == 6319:
+            return 1  # NAD83(2011)
+        if epsg == 4979:
+            return 10  # WGS84(G1762)
+        raise ValueError(f"EPSG {epsg} not defined in HTDP dictionary.")
+
     def run_grid(
         self,
         region: Any,
         nx: int,
         ny: int,
-        epsg_in: int,
-        epsg_out: int,
+        frame_id_in: int | None,
+        frame_id_out: int | None,
         epoch_in: str,
         epoch_out: str,
+        epsg_in: int | None = None,
+        epsg_out: int | None = None,
     ) -> np.ndarray:
         """Main entry point called by transform.py.
         Generates a shift grid between two frames.
@@ -89,10 +105,12 @@ class HTDP:
             region: Geographic region object with xmin/xmax/ymin/ymax.
             nx: Number of pixels along x-axis.
             ny: Number of pixels along y-axis.
-            epsg_in: Source EPSG code.
-            epsg_out: Target EPSG code.
+            frame_id_in: Source HTDP Frame ID.
+            frame_id_out: Target HTDP Frame ID.
             epoch_in: Source epoch string.
             epoch_out: Target epoch string.
+            epsg_in: Source EPSG code. Depreciated.
+            epsg_out: Target EPSG code. Depreciated.
 
         Returns:
             2D shift grid (ny, nx). Zeros if HTDP unavailable.
@@ -106,21 +124,18 @@ class HTDP:
         coarse_nx = min(nx, 50)
         coarse_ny = min(ny, 50)
 
-        # Look up HTDP numeric IDs (e.g., NAD83=1, WGS84=10)
-        # transform.py passes ints (EPSGs), we need HTDP internal IDs
-        def get_id(epsg: int) -> int:
-            if epsg in Datums.HTDP:
-                return Datums.HTDP[epsg]["htdp_id"]
-            # Fallback for common codes if not in dictionary
-            if epsg == 6319:
-                return 1  # NAD83(2011)
-            if epsg == 4979:
-                return 10  # WGS84(G1762)
-            raise ValueError(f"EPSG {epsg} not defined in HTDP dictionary.")
-
         try:
-            id_in = get_id(epsg_in)
-            id_out = get_id(epsg_out)
+            if frame_id_in is None:
+                if epsg_in is None:
+                    raise ValueError("frame_id_in or epsg_in is required.")
+                frame_id_in = self._legacy_htdp_id_from_epsg(epsg_in)
+
+            if frame_id_out is None:
+                if epsg_out is None:
+                    raise ValueError("frame_id_out or epsg_out is required.")
+                frame_id_out = self._legacy_htdp_id_from_epsg(epsg_out)
+                # id_in = get_id(epsg_in)
+                # id_out = get_id(epsg_out)
         except ValueError as e:
             logger.error(e)
             return np.zeros((ny, nx))
@@ -153,7 +168,7 @@ class HTDP:
 
             # Write Control File
             self._write_control(
-                ctl_fn, out_fn, in_fn, id_in, epoch_in, id_out, epoch_out
+                ctl_fn, out_fn, in_fn, frame_id_in, epoch_in, frame_id_out, epoch_out
             )
 
             # Run HTDP
@@ -223,17 +238,17 @@ class HTDP:
         control_fn: Path,
         out_fn: Path,
         in_fn: Path,
-        id_in: int,
+        frame_id_in: int,
         epoch_in: str,
-        id_out: int,
+        frame_id_out: int,
         epoch_out: str,
     ):
         """Write the batch control file.
 
         4 = Transform Positions
         2 = Input file
-        ID_IN
-        ID_OUT
+        FRAME_ID_IN
+        FRAME_ID_OUT
         2 = Epoch Format (Decimal Years)
         EPOCH_IN
         2 = Epoch Format
@@ -247,17 +262,17 @@ class HTDP:
             control_fn: Path for control file output.
             out_fn: Path for HTDP output.
             in_fn: Path to input coordinates file.
-            id_in: HTDP source frame ID.
+            frame_id_in: HTDP source frame ID.
             epoch_in: Source epoch (decimal years).
-            id_out: HTDP target frame ID.
+            frame_id_out: HTDP target frame ID.
             epoch_out: Target epoch (decimal years).
         """
 
         content = (
             f"4\n"
             f"{out_fn}\n"
-            f"{id_in}\n"
-            f"{id_out}\n"
+            f"{frame_id_in}\n"
+            f"{frame_id_out}\n"
             f"2\n"
             f"{epoch_in}\n"
             f"2\n"

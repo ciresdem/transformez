@@ -448,10 +448,12 @@ class VerticalTransform:
                 self.region,
                 self.nx,
                 self.ny,
-                epsg_from,
-                epsg_to,
+                None,
+                None,
                 str(epoch_from),
                 str(epoch_to),
+                epsg_out=epsg_from,
+                epsg_in=epsg_to,
             )
 
             if not np.any(grid):
@@ -467,10 +469,12 @@ class VerticalTransform:
                     self.region,
                     self.nx,
                     self.ny,
-                    epsg_from,
-                    epsg_to,
+                    None,
+                    None,
                     str(epoch_to),
                     str(epoch_to),
+                    epsg_out=epsg_from,
+                    epsg_in=epsg_to,
                 )
 
             if np.any(grid):
