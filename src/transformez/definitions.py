@@ -406,7 +406,7 @@ class Datums:
         6643: {
             "name": "ASVD02 height",
             "vdatum_id": "asvd02:m:height",
-            "default_geoid": "asvd02",
+            "default_geoid": "g2012bs0",
             "ellipsoid": 6321,
         },
         # Canada (CGVD2013 uses CGG2013 geoid)
@@ -445,7 +445,8 @@ class Datums:
         "egm2008": {"name": "EGM2008", "uncertainty": 0, "provider": "proj"},
         "egm96": {"name": "EGM96", "uncertainty": 0, "provider": "proj"},
         "CGG2013": {"name": "CGG2013", "uncertainty": 0.01, "provider": "proj"},
-        "asvd02": {"name": "ASVD02", "uncertainty": 0, "provider": "proj"},
+        "g2012bs0": {"name": "geoid 2012b s0", "uncertainty": 0, "provider": "proj"},
+        "g2009s01": {"name": "geoid 2009 s01", "uncertainty": 0, "provider": "proj"},
     }
 
     MODELS: Dict[str, Dict[str, Any]] = {
