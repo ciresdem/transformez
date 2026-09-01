@@ -62,9 +62,29 @@ class ParsedReference:
 
 
 @dataclass(frozen=True, slots=True)
+class ResolvedVerticalReference:
+    """A vertical reference with all execution metadata resolved."""
+
+    from .bindings import OperationBinding
+
+    reference: VerticalReference
+    binding: OperationBinding | None
+    native_frame: CRS
+    model: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ResolvedReference:
-    """A concrete reference after metadata inference and inheritance."""
+    """A fully resolved coordinate reference endpoint."""
 
     horizontal: CRS | None
-    vertical: VerticalReference | None
-    coordinate_epoch: float | None = None
+    vertical: ResolvedVerticalReference | None
+    coordinate_epoch: float | None
+
+    @property
+    def vertical_reference(self) -> VerticalReference | None:
+        return self.vertical.reference if self.vertical else None
+
+    @property
+    def native_vertical_frame(self) -> CRS | None:
+        return self.vertical.native_frame if self.vertical else None
