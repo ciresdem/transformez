@@ -29,7 +29,7 @@ from .api import generate_grid, transform_raster, build_components
 from .generation import build_shift_grid
 
 import os
-import glob
+from pathlib import Path
 
 # Expose the module for fetchez
 # from .modules import TransformezMod
@@ -41,12 +41,13 @@ def _find_proj_lib():
     try:
         import rasterio
 
-        r_path = os.path.join(os.path.dirname(rasterio.__file__), "proj_data")
-        if os.path.exists(os.path.join(r_path, "proj.db")):
-            return r_path
+        r_path = Path(rasterio.__file__)
+        r_data_path = r_path / "proj_data"
+        if Path(r_data_path / "proj.db").exists():
+            return r_data_path
 
-        parent = os.path.dirname(os.path.dirname(rasterio.__file__))
-        libs = glob.glob(os.path.join(parent, "rasterio.libs*"))
+        parent = r_path.parent
+        libs = Path.glob(parent / "rasterio.libs*")
         if libs:
             for root, _, files in os.walk(libs[0]):
                 if "proj.db" in files:
@@ -58,8 +59,8 @@ def _find_proj_lib():
         import pyproj
 
         p_path = pyproj.datadir.get_data_dir()
-        if os.path.exists(os.path.join(p_path, "proj.db")):
-            return p_path
+        if Path(Path(p_path) / "proj.db").exists():
+            return str(p_path)
     except ImportError:
         pass
 

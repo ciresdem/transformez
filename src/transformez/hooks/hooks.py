@@ -11,7 +11,7 @@ Some hooks for `fetchez`
 :license: MIT, see LICENSE for more details.
 """
 
-import os
+from pathlib import Path
 import logging
 
 from fetchez.hooks import FetchHook
@@ -53,7 +53,7 @@ class TransformezHook(FetchHook):
         self.datum_in = datum_in
         self.datum_out = datum_out
         self.increment = increment
-        self.output_grid = output_grid
+        self.output_grid = Path(output_grid)
         self.keep_grid = utils.str2bool(keep_grid)
         self.apply = utils.str2bool(apply)
 
@@ -72,7 +72,7 @@ class TransformezHook(FetchHook):
         logger.info(f"Generating vertical shift grid for region: {region}")
         self._generate_grid(region)
 
-        for mod, entry in entries:
+        for _mod, entry in entries:
             entry["shift_grid_path"] = self.output_grid
             entry["vdatum_in"] = self.datum_in
             entry["vdatum_out"] = self.datum_out
@@ -83,17 +83,17 @@ class TransformezHook(FetchHook):
     def _run_file(self, entries):
         """Apply the shift grid to specific files."""
 
-        if not os.path.exists(self.output_grid):
+        if not self.output_grid.exists():
             logger.warning(
                 f"Shift grid {self.output_grid} not found. Skipping transform."
             )
             return entries
 
-        for mod, entry in entries:
+        for _mod, entry in entries:
             if entry.get("status") != 0:
                 continue
 
-            filepath = entry["dst_fn"]
+            filepath = Path(entry["dst_fn"])
 
             # Enrich Metadata
             entry["shift_grid_path"] = self.output_grid
@@ -104,7 +104,7 @@ class TransformezHook(FetchHook):
             if not self.apply:
                 continue
 
-            ext = os.path.splitext(filepath)[1].lower()
+            ext = filepath.suffix.lower()
             transformed_path = None
 
             if ext in [".tif", ".gtx"]:

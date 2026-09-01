@@ -13,7 +13,7 @@ Transforms coordinates between reference frames (e.g. NAD83 <-> WGS84).
 """
 
 import sys
-import os
+from pathlib import Path
 import subprocess
 import tempfile
 import shutil
@@ -42,11 +42,9 @@ def resolve_htdp_path(version: str = "3.5.0") -> Optional[str]:
     ae = ".exe" if sys.platform == "win32" else ""
 
     # Check local transformez_cache/bin/
-    cache_bin = os.path.join(
-        os.getcwd(), "transformez_cache", "bin", f"htdp_{clean_version}{ae}"
-    )
-    if os.path.exists(cache_bin):
-        return cache_bin
+    cache_bin = Path.cwd() / "transformez_cache" / "bin" / f"htdp_{clean_version}{ae}"
+    if cache_bin.exists():
+        return str(cache_bin)
 
     if shutil.which(f"htdp{ae}"):
         return f"htdp{ae}"
@@ -129,16 +127,18 @@ class HTDP:
 
         # Create Temporary Workspace
         with tempfile.TemporaryDirectory() as tmpdir:
-            in_fn = os.path.join(tmpdir, "htdp_in.txt")
-            out_fn = os.path.join(tmpdir, "htdp_out.txt")
-            ctl_fn = os.path.join(tmpdir, "htdp.inp")
+            tempdir = Path(tmpdir)
+
+            in_fn = tempdir / "htdp_in.txt"
+            out_fn = tempdir / "htdp_out.txt"
+            ctl_fn = tempdir / "htdp.inp"
 
             # The output Z will be the shift.
             lons = np.linspace(region.xmin, region.xmax, coarse_nx)
             lats = np.linspace(region.ymin, region.ymax, coarse_ny)
 
             # Write input file
-            with open(in_fn, "w") as f:
+            with in_fn.open("w") as f:
                 for y_idx, lat in enumerate(lats):
                     for x_idx, lon in enumerate(lons):
                         # "Lat Lon Height TextID"
@@ -161,7 +161,7 @@ class HTDP:
                 raise RuntimeError("HTDP execution failed.")
 
             # Parse Output & Build Grid
-            if not os.path.exists(out_fn):
+            if not out_fn.exists():
                 logger.error("HTDP produced no output.")
                 return np.zeros((ny, nx))
 
@@ -180,7 +180,7 @@ class HTDP:
             # grid = self._read_grid(out_fn, (ny, nx))
             # return grid
 
-    def _read_grid(self, filename: str, shape: Tuple[int, int]) -> np.ndarray:
+    def _read_grid(self, filename: Path, shape: Tuple[int, int]) -> np.ndarray:
         """Parse HTDP output, mapping PNT_x_y tags to grid indices.
 
         Args:
@@ -192,7 +192,7 @@ class HTDP:
         """
 
         grid = np.zeros(shape)
-        with open(filename, "r") as f:
+        with filename.open("r") as f:
             for line in f:
                 if "PNT_" not in line:
                     continue
@@ -220,9 +220,9 @@ class HTDP:
 
     def _write_control(
         self,
-        control_fn: str,
-        out_fn: str,
-        in_fn: str,
+        control_fn: Path,
+        out_fn: Path,
+        in_fn: Path,
         id_in: int,
         epoch_in: str,
         id_out: int,
@@ -267,36 +267,32 @@ class HTDP:
             f"0\n"
             f"0\n"
         )
-        with open(control_fn, "w") as f:
+        with control_fn.open("w") as f:
             f.write(content)
 
-    def run_cmd(self, control_fn: Optional[Any] = None) -> bool:
-        """Execute the HTDP binary.
-
-        Args:
-            control_fn: Path to control file. If None, uses interactive mode.
-
-        Returns:
-            True if execution succeeded, False otherwise.
-        """
-
+    def run_cmd(self, control_fn: str | Path | None = None) -> bool:
         if not self.htdp_bin:
             logger.error("No HTDP binary available.")
             return False
 
-        if control_fn is None:
-            control_fn = 0
-
         try:
-            with open(control_fn, "r") as stdin:
+            if control_fn is None:
                 subprocess.run(
                     [self.htdp_bin],
-                    stdin=stdin,
                     check=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
                 )
+            else:
+                with Path(control_fn).open("r") as stdin:
+                    subprocess.run(
+                        [self.htdp_bin],
+                        stdin=stdin,
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                    )
+
             return True
+
         except subprocess.CalledProcessError as e:
             logger.error(f"HTDP runtime error: {e.stderr.decode() if e.stderr else e}")
             return False
@@ -305,7 +301,7 @@ class HTDP:
             return False
 
 
-def download_htdp(target_dir: Optional[str] = None) -> None:
+def download_htdp(target_dir: Optional[str | Path] = None) -> None:
     """Download HTDP from NOAA NGS.
 
     On Windows, downloads the pre-compiled executable.
@@ -315,15 +311,14 @@ def download_htdp(target_dir: Optional[str] = None) -> None:
         target_dir: Directory to download into. Defaults to cwd.
     """
 
-    if target_dir is None:
-        target_dir = os.getcwd()
+    target_dir = Path(target_dir) if target_dir is not None else Path.cwd()
 
-    os.makedirs(target_dir, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
 
     if sys.platform == "win32":
         # Windows: Download pre-compiled EXE
         url = "https://geodesy.noaa.gov/TOOLS/Htdp/htdp.exe"
-        out_path = os.path.join(target_dir, "htdp.exe")
+        out_path = target_dir / "htdp.exe"
         logger.info("Downloading HTDP executable for Windows from NOAA...")
         try:
             urllib.request.urlretrieve(url, out_path)
@@ -337,8 +332,8 @@ def download_htdp(target_dir: Optional[str] = None) -> None:
     else:
         # Linux/Mac: Download Fortran Source
         url = "https://geodesy.noaa.gov/TOOLS/Htdp/HTDP-download.zip"
-        zip_path = os.path.join(target_dir, "HTDP-download.zip")
-        src_dir = os.path.join(target_dir, "htdp_source")
+        zip_path = target_dir / "HTDP-download.zip"
+        src_dir = target_dir / "htdp_source"
 
         logger.info("Downloading HTDP source code for Unix from NOAA...")
         try:
@@ -347,7 +342,7 @@ def download_htdp(target_dir: Optional[str] = None) -> None:
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(src_dir)
 
-            os.remove(zip_path)
+            zip_path.unlink()
 
             logger.info(f"Success! Source code extracted to: {src_dir}")
             logger.info(
@@ -370,8 +365,8 @@ def install_htdp_binary(version: str = "3.5.0") -> None:
         version: HTDP version string (e.g., '3.5.0').
     """
 
-    cache_dir = os.path.join(os.getcwd(), "transformez_cache", "bin")
-    os.makedirs(cache_dir, exist_ok=True)
+    cache_dir = Path.cwd() / "transformez_cache" / "bin"
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Format the GitHub Tag (e.g., "v3.5.0")
     v_tag = f"v{version}" if not version.startswith("v") else version
@@ -379,7 +374,7 @@ def install_htdp_binary(version: str = "3.5.0") -> None:
 
     logger.info(f"Downloading HTDP reposity ({v_tag})...")
     url = f"https://github.com/noaa-ngs/HTDP/archive/refs/tags/{v_tag}.zip"
-    zip_path = os.path.join(cache_dir, f"htdp_{clean_version}.zip")
+    zip_path = cache_dir / f"htdp_{clean_version}.zip"
 
     try:
         urllib.request.urlretrieve(url, zip_path)
@@ -388,20 +383,20 @@ def install_htdp_binary(version: str = "3.5.0") -> None:
             with zipfile.ZipFile(zip_path, "r") as z:
                 exe_name = next(name for name in z.namelist() if name.endswith(".exe"))
                 extracted_path = z.extract(exe_name, cache_dir)
-                exe_path = os.path.join(cache_dir, f"htdp_{clean_version}.exe")
+                exe_path = cache_dir / f"htdp_{clean_version}.exe"
 
-                if os.path.exists(exe_path):
-                    os.remove(exe_path)
+                if exe_path.exists():
+                    exe_path.unlink()
                 shutil.move(extracted_path, exe_path)
         else:
-            extract_dir = os.path.join(cache_dir, f"htdp_src_{clean_version}")
+            extract_dir = cache_dir / f"htdp_src_{clean_version}"
             with zipfile.ZipFile(zip_path, "r") as z:
                 z.extractall(extract_dir)
 
             # GitHub extracts to a folder named Repository-Tag (e.g., HTDP-3.5.0)
-            source_folder = os.path.join(extract_dir, f"HTDP-{clean_version}")
-            fortran_file = os.path.join(source_folder, "htdp.f")
-            out_bin = os.path.join(cache_dir, f"htdp_{clean_version}")
+            source_folder = extract_dir / f"HTDP-{clean_version}"
+            fortran_file = source_folder / "htdp.f"
+            out_bin = cache_dir / f"htdp_{clean_version}"
 
             logger.info(f"Compiling HTDP {clean_version} with gfortran...")
             subprocess.run(
@@ -414,7 +409,7 @@ def install_htdp_binary(version: str = "3.5.0") -> None:
             # Clean up the raw source files
             shutil.rmtree(extract_dir)
 
-        os.remove(zip_path)
+        zip_path.unlink()
 
     except subprocess.CalledProcessError as e:
         logger.error(f"Compilation failed: {e.stderr.decode() if e.stderr else e}")

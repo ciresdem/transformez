@@ -197,8 +197,8 @@ def parse_reference(
     if prefix in CUSTOM_REFERENCE_PREFIXES:
         try:
             vert_ref = CUSTOM_REGISTRY.resolve(text)
-        except ValueError:
-            raise InvalidReferenceError("Invalid custom reference")
+        except ValueError as e:
+            raise InvalidReferenceError("Invalid custom reference") from e
         return vertical_only(vert_ref, text)
 
     if text.isdecimal():

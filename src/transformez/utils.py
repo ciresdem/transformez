@@ -12,6 +12,7 @@ This holds various utility functions.
 """
 
 import os
+from pathlib import Path
 import subprocess
 import logging
 import shlex
@@ -22,6 +23,10 @@ import rasterio
 import shutil
 
 logger = logging.getLogger(__name__)
+
+
+def _cmd_exists(x: str) -> bool:
+    return shutil.which(x) is not None
 
 
 def cmd_exists(x: str) -> bool:
@@ -35,7 +40,7 @@ def cmd_exists(x: str) -> bool:
     """
 
     return any(
-        os.access(os.path.join(path, x), os.X_OK)
+        os.access(os.path.join(path, x), os.X_OK)  # noqa: PTH110, PTH118
         for path in os.environ["PATH"].split(os.pathsep)
     )
 
@@ -93,7 +98,7 @@ class RasterQuery:
     Pre-loads raster data and inverse transform to rapidly query (X, Y) arrays.
     """
 
-    def __init__(self, filename: str, default_nodata: float = 0.0):
+    def __init__(self, filename: str | Path, default_nodata: float = 0.0):
         """Initialize RasterQuery.
 
         Args:
@@ -104,7 +109,9 @@ class RasterQuery:
             FileNotFoundError: If file doesn't exist.
         """
 
-        if not filename or not os.path.exists(filename):
+        self.filename = Path(filename)
+
+        if not self.filename.exists():
             raise FileNotFoundError(f"Raster not found: {filename}")
 
         self.default_nodata = default_nodata
@@ -155,7 +162,8 @@ class RasterQuery:
 
 
 def export_cache(
-    cache_dir: Optional[str] = None, output_name: str = "transformez_offline_cache"
+    cache_dir: Optional[str | Path] = None,
+    output_name: str = "transformez_offline_cache",
 ) -> Optional[str]:
     """Pack the local transformez cache into a ZIP file.
 
@@ -167,15 +175,16 @@ def export_cache(
         Path to created ZIP file, or None if failed.
     """
 
-    if cache_dir is None:
-        cache_dir = os.path.join(os.getcwd(), "transformez_cache")
+    cache_dir = (
+        Path(cache_dir) if cache_dir is not None else Path.cwd() / "transformez_cache"
+    )
 
-    if not os.path.exists(cache_dir):
+    if not cache_dir.exists():
         logger.error(f"[EXPORT FATAL] Cache directory not found at: {cache_dir}")
         logger.error("Run a transformation to populate the cache before exporting.")
         return None
 
-    out_path = os.path.abspath(output_name)
+    out_path = Path(output_name).resolve()
 
     logger.info("-" * 60)
     logger.info(f"Packing offline cache bundle from: {cache_dir}")
@@ -184,8 +193,8 @@ def export_cache(
     )
 
     try:
-        zip_path = shutil.make_archive(out_path, "zip", cache_dir)
-        size_mb = os.path.getsize(zip_path) / (1024 * 1024)
+        zip_path = shutil.make_archive(str(out_path), "zip", cache_dir)
+        size_mb = Path(zip_path).stat().st_size / (1024 * 1024)
 
         logger.info(
             f"Successfully exported offline cache bundle: {zip_path} ({size_mb:.1f} MB)"

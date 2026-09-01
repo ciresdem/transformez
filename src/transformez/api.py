@@ -27,7 +27,6 @@ Usage::
     )
 """
 
-import os
 import logging
 from pathlib import Path
 import numpy as np
@@ -129,8 +128,8 @@ def generate_grid(
     buffer_distance_m: Optional[float] = None,
     max_vdatum_extension_m: Optional[float] = None,
     extrapolate_inland: bool = False,
-    out_fn: Optional[str] = None,
-    cache_dir: Optional[str] = None,
+    out_fn: Optional[str | Path] = None,
+    cache_dir: Optional[str | Path] = None,
     use_stations: bool = False,
     verbose: bool = False,
 ) -> Optional[np.ndarray]:
@@ -161,6 +160,9 @@ def generate_grid(
         2D vertical shift grid, or None if failed.
     """
 
+    cache_dir = (
+        Path(cache_dir) if cache_dir is not None else Path.cwd() / "transformez_cache"
+    )
     shift_grid = build_shift_grid(
         region,
         increment,
@@ -190,11 +192,13 @@ def build_components(
     dst_srs: str,
     region: Region | str | list[float],
     increment: str | float = "3s",
-    cache_dir: str | None = None,
+    cache_dir: str | Path | None = None,
     **vertical_options: Any,
 ) -> TransformationComponents:
     source = parse_reference(src_srs)
     target = parse_reference(dst_srs)
+
+    cache_dir = Path(cache_dir) if cache_dir else None
 
     if isinstance(region, Region):
         region_obj = region
@@ -240,7 +244,7 @@ def build_components(
 
 
 def transform_raster(
-    input_raster: str,
+    input_raster: str | Path,
     datum_in: str,
     datum_out: str,
     epoch_in: str = "2010.0",
@@ -250,8 +254,8 @@ def transform_raster(
     buffer_distance_m: Optional[float] = None,
     max_vdatum_extension_m: Optional[float] = None,
     extrapolate_inland: bool = False,
-    output_raster: Optional[str] = None,
-    cache_dir: Optional[str] = None,
+    output_raster: Optional[str | Path] = None,
+    cache_dir: Optional[str | Path] = None,
     z_unit_in: str = "auto",
     z_unit_out: str = "auto",
     use_stations: bool = False,
@@ -289,12 +293,21 @@ def transform_raster(
 
     import rasterio
 
-    if not os.path.exists(input_raster):
+    cache_dir = (
+        Path(cache_dir) if cache_dir is not None else Path.cwd() / "transformez_cache"
+    )
+    input_raster = Path(input_raster)
+
+    if not input_raster.exists():
         raise ValueError(f"Input raster not found: {input_raster}")
 
-    if not output_raster:
-        base, ext = os.path.splitext(input_raster)
-        output_raster = f"{base}_trans_{datum_out.replace(':', '_')}{ext}"
+    if output_raster is None:
+        output_raster = input_raster.with_name(
+            f"{input_raster.stem}_trans_{datum_out.replace(':', '_')}"
+            f"{input_raster.suffix}"
+        )
+    else:
+        output_raster = Path(output_raster)
 
     with rasterio.open(input_raster) as src:
         native_crs = src.crs
@@ -352,12 +365,10 @@ def transform_raster(
     )
 
     if save_shift:
-        shift_fn = Path(output_raster).with_name(
-            f"{Path(output_raster).stem}_shiftgrid.tif"
-        )
-        aligned_shift.write(str(shift_fn))
+        shift_fn = output_raster.with_name(f"{output_raster.stem}_shiftgrid.tif")
+        aligned_shift.write(shift_fn)
 
-    return output_raster if success else None
+    return str(output_raster) if success else None
 
 
 class PointTransformer:
@@ -374,9 +385,13 @@ class PointTransformer:
         region: Any,
         z_unit_in: str = "m",
         z_unit_out: str = "m",
-        cache_dir: str = ".",
+        cache_dir: Optional[str | Path] = None,
     ):
-
+        cache_dir = (
+            Path(cache_dir)
+            if cache_dir is not None
+            else Path.cwd() / "transformez_cache"
+        )
         components = build_components(
             src_srs,
             dst_srs,
@@ -389,7 +404,7 @@ class PointTransformer:
 
         if components.vertical is not None:
             self.grid_path = components.vertical.write()
-            self.raster_query = RasterQuery(str(self.grid_path))
+            self.raster_query = RasterQuery(self.grid_path)
         else:
             self.grid_path = None
             self.raster_query = None
@@ -450,7 +465,7 @@ def prefetch_region(
     datum_in: Optional[str] = None,
     datum_out: Optional[str] = None,
     fetch_all: bool = False,
-    cache_dir: Optional[str] = None,
+    cache_dir: Optional[str | Path] = None,
     verbose: bool = True,
 ) -> bool:
     """Pre-download transformation grids and reference datasets for offline field use.
@@ -468,6 +483,10 @@ def prefetch_region(
     """
 
     from .definitions import Datums
+
+    cache_dir = (
+        Path(cache_dir) if cache_dir is not None else Path.cwd() / "transformez_cache"
+    )
 
     if isinstance(region, Region):
         region_obj = region

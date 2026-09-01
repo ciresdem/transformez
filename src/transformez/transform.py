@@ -16,6 +16,7 @@ import os
 import logging
 import gzip
 import shutil
+from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
@@ -58,7 +59,7 @@ class VerticalTransform:
         buffer_distance_m: Optional[float] = None,
         extrapolate_inland: bool = False,
         max_vdatum_extension_m: Optional[float] = None,
-        cache_dir: Optional[str] = None,
+        cache_dir: Optional[str | Path] = None,
         use_stations: bool = False,
         verbose: bool = True,
     ):
@@ -92,9 +93,14 @@ class VerticalTransform:
         self.region = region
         self.nx = nx
         self.ny = ny
-        self.cache_dir = cache_dir or os.path.join(os.getcwd(), "transformez_cache")
-        if not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
+
+        self.cache_dir = (
+            Path(cache_dir)
+            if cache_dir is not None
+            else Path.cwd() / "transformez_cache"
+        )
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
         self.verbose = verbose
 
         self.epsg_in = Datums.get_vdatum_by_name(str(epsg_in))
@@ -155,7 +161,7 @@ class VerticalTransform:
             return epsg
         return WGS84_EPSG
 
-    def fetch_grid(self, module_name: str, **kwargs: Any) -> List[str]:
+    def fetch_grid(self, module_name: str, **kwargs: Any) -> List[Path]:
         """Generic fetcher wrapper using the new fetchez API.
 
         Args:
@@ -176,13 +182,14 @@ class VerticalTransform:
             **kwargs,
         )
 
-        valid: List[str] = []
+        valid: List[Path] = []
 
         for fn in files:
-            if not os.path.exists(fn):
+            fn = Path(fn)
+            if not fn.exists():
                 continue
 
-            if fn.endswith(".zip"):
+            if fn.suffix == ".zip":
                 datatype = kwargs.get("datatype")
                 if datatype:
                     fns_to_extract = [datatype, ".met", ".inf"]
@@ -201,31 +208,30 @@ class VerticalTransform:
                         extracted = []
                         for root, _, filenames in os.walk(self.cache_dir):
                             for f in filenames:
-                                extracted.append(os.path.join(root, f))
+                                extracted.append(Path(root) / f)
                     else:
                         raise
-                valid.extend(
-                    [
-                        f
-                        for f in extracted
-                        if f.endswith((".gtx", ".tif", ".grd", ".nc"))
-                        and "unc." not in f
-                    ]
-                )
+                for extracted_file in extracted:
+                    path = Path(extracted_file)
+                    if (
+                        path.suffix in {".gtx", ".tif", ".grd", ".nc"}
+                        and "unc." not in path.name
+                    ):
+                        valid.append(path)
 
-            elif fn.endswith(".gz"):
+            elif fn.suffix == ".gz":
                 try:
-                    out_fn = os.path.splitext(fn)[0]
-                    if not os.path.exists(out_fn):
+                    out_fn = fn.parent / fn.stem
+                    if not out_fn.exists():
                         logger.debug(f"Decompressing {fn}...")
                         with gzip.open(fn, "rb") as f_in:
-                            with open(out_fn, "wb") as f_out:
+                            with out_fn.open("wb") as f_out:
                                 shutil.copyfileobj(f_in, f_out)
                     valid.append(out_fn)
                 except Exception as e:
                     logger.error(f"Failed to decompress {fn}: {e}")
 
-            elif fn.endswith((".gtx", ".tif", ".grd", ".nc", ".mss")):
+            elif fn.suffix in [".gtx", ".tif", ".grd", ".nc", ".mss"]:
                 valid.append(fn)
         return valid
 
@@ -259,20 +265,22 @@ class VerticalTransform:
                 import rasterio
                 from datetime import datetime
 
-                def get_vdatum_date(gtx_path: str) -> datetime:
+                def get_vdatum_date(gtx_path: Path) -> datetime:
                     """Parse release date from VDatum metadata files."""
 
-                    dir_name = os.path.dirname(gtx_path)
+                    dir_name = gtx_path.parent
                     meta_files = [
-                        f for f in os.listdir(dir_name) if f.endswith((".met", ".inf"))
+                        f
+                        for f in list(dir_name.iterdir())
+                        if f.suffix in [".met", ".inf"]
                     ]
 
                     if not meta_files:
                         return datetime(1970, 1, 1)
 
-                    meta_path = os.path.join(dir_name, meta_files[0])
+                    meta_path = meta_files[0]
                     try:
-                        with open(meta_path, "r") as f:
+                        with meta_path.open("r") as f:
                             content = f.read().splitlines()
 
                         if not content:
@@ -313,7 +321,7 @@ class VerticalTransform:
 
                     return datetime(1970, 1, 1)
 
-                def sort_key(filepath: str) -> Tuple[float, float]:
+                def sort_key(filepath: Path) -> Tuple[float, float]:
                     """Sort key for time-based ordering."""
 
                     date_val = get_vdatum_date(filepath)
@@ -336,14 +344,14 @@ class VerticalTransform:
                         f"and retrying (Attempt {attempt + 2}/{max_retries})..."
                     )
 
-                    if os.path.exists(self.cache_dir):
-                        for f in os.listdir(self.cache_dir):
+                    if self.cache_dir.exists():
+                        for f in list(self.cache_dir.iterdir()):
                             if (
-                                name.lower() in f.lower()
-                                or provider.lower() in f.lower()
+                                name.lower() in str(f).lower()
+                                or provider.lower() in str(f).lower()
                             ):
                                 try:
-                                    os.remove(os.path.join(self.cache_dir, f))
+                                    f.unlink()
                                 except OSError:
                                     pass
                     continue
@@ -388,7 +396,9 @@ class VerticalTransform:
                     logger.error(
                         "Max retries reached. Could not secure an uncorrupted grid."
                     )
-                    raise MissingGridError(f"Grid '{name}' is persistently corrupted.")
+                    raise MissingGridError(
+                        f"Grid '{name}' is persistently corrupted."
+                    ) from None
 
         raise MissingGridError(
             f"Failed to fetch grid '{name}' due to an unknown error."
