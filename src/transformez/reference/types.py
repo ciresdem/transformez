@@ -16,6 +16,8 @@ from enum import StrEnum
 
 from pyproj import CRS
 
+from .bindings import HtdpFrameBinding, OperationBinding
+
 
 class VerticalKind(StrEnum):
     ELLIPSOIDAL_HEIGHT = "ellipsoidal_height"
@@ -34,7 +36,7 @@ class AxisDirection(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class VerticalReference:
-    """A resolved vertical coordinate reference."""
+    """A vertical coordinate reference."""
 
     id: str
     name: str
@@ -63,13 +65,10 @@ class ParsedReference:
 
 @dataclass(frozen=True, slots=True)
 class ResolvedVerticalReference:
-    """A vertical reference with all execution metadata resolved."""
-
-    from .bindings import OperationBinding
-
     reference: VerticalReference
     binding: OperationBinding | None
     native_frame: CRS
+    frame_binding: HtdpFrameBinding | None
     model: str | None = None
 
 
