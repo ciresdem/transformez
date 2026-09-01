@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplified the high-level Python API so everything uses generation.py
 - Improved generated-grid cache identity to account for transformation references, epochs, region, resolution, decay settings, and other generation options.
 - Moved vertical unit metadata out of the legacy datum registry and into the typed reference model.
+- Refactored to adhere to ruff PTH rules.
 
 ### Fixed
 - Refactor dist2coast usage to fix a bug that would burn the dist2coast edges onto the raster result. This was due to performing an edt distance transform from the low-res dist2coast raster, treating it as a mask instead of a distance field. Update allows setting the distance by km instead of number of pixels and smooths the 'zero' field to get proper transitions.
