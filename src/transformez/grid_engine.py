@@ -17,6 +17,7 @@ import os
 import logging
 from pathlib import Path
 from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import Optional, List, Dict, Any, Tuple, Mapping
 
 import numpy as np
@@ -126,13 +127,13 @@ class CoastalContext:
 class GridEngine:
     @staticmethod
     def load_and_interpolate(
-        source_files: List[str],
+        source_files: Sequence[str | Path],
         target_region: Region | str,
         nx: int,
         ny: int,
         decay_pixels: int = 100,
         preserve_zero: bool = False,
-    ):
+    ) -> np.ndarray:
         """Composites grids using GDAL/rasterio Warper.
 
         Args:
@@ -166,12 +167,19 @@ class GridEngine:
 
         mosaic = np.full((ny, nx), np.nan, dtype=np.float32)
 
-        for fn in source_files:
-            if not os.path.exists(fn) and not fn.startswith("netcdf:"):
-                continue
+        for source in source_files:
+            source_str = str(source)
+            is_gdal_dataset = source_str.startswith("netcdf:")
+
+            if is_gdal_dataset:
+                source_path = None
+            else:
+                source_path = Path(source)
+                if not source_path.exists():
+                    continue
 
             try:
-                with rasterio.open(fn) as src:
+                with rasterio.open(source) as src:
                     src_data = src.read(1).astype(np.float32)
                     src_nodata = src.nodata
 
@@ -182,7 +190,7 @@ class GridEngine:
                     )
                     if src_nodata is not None and not preserve_zero_nodata:
                         src_data[np.isclose(src_data, src_nodata, atol=1e-4)] = np.nan
-                    if fn.endswith(".gtx"):
+                    if source_path is not None and source_path.suffix == ".gtx":
                         src_data[np.isclose(src_data, -88.8888, atol=1e-2)] = np.nan
 
                     temp_buffer = np.full((ny, nx), np.nan, dtype=np.float32)
@@ -215,21 +223,29 @@ class GridEngine:
                         "RasterioIOError",
                     ]
                 ):
-                    logger.error(f" CRITICAL: Corrupted grid chunk detected in {fn}!")
+                    logger.error(
+                        f" CRITICAL: Corrupted grid chunk detected in {source}!"
+                    )
 
-                    real_path = fn.split(":")[1] if fn.startswith("netcdf:") else fn
-                    if os.path.exists(real_path):
+                    if is_gdal_dataset:
+                        real_path = Path(source_str.split(":")[1])
+                    else:
+                        real_path = source_path or Path(source)
+
+                    if real_path.exists():
                         logger.warning(
                             f"Auto-deleting corrupted cache file to force re-fetch: {real_path}"
                         )
                         try:
-                            os.remove(real_path)
+                            real_path.unlink()
                         except OSError:
                             pass
 
-                    raise GridCorruptionError(f"Corrupted file deleted: {real_path}")
+                    raise GridCorruptionError(
+                        f"Corrupted file deleted: {real_path}"
+                    ) from e
 
-                logger.exception(f"Failed to reproject {fn}: {e}")
+                logger.exception(f"Failed to reproject {source}: {e}")
                 raise
 
         return mosaic
@@ -586,9 +602,9 @@ class GridEngine:
 
     @staticmethod
     def apply_vertical_shift(
-        src_dem: str,
+        src_dem: str | Path,
         shift_grid: "ShiftGrid",
-        dst_dem: str,
+        dst_dem: str | Path,
         z_unit_in: str = "m",
         z_unit_out: str = "m",
     ) -> bool:
@@ -620,7 +636,7 @@ class GridEngine:
                 with rasterio.open(dst_dem, "w", **profile) as dst:
                     dst.update_tags(**shift_grid.provenance)
 
-                    for ji, window in dst.block_windows(1):
+                    for _ji, window in dst.block_windows(1):
                         data_chunk = src.read(1, window=window).astype(np.float32)
                         if np.isnan(nodata):
                             if np.all(np.isnan(data_chunk)):
@@ -708,7 +724,7 @@ class GridEngine:
         src_crs = CRS.from_user_input(src_crs)
 
         if src_crs == dst_crs and dst_region is None and dst_shape is None:
-            return shift_array, src_transform, dst_region
+            return shift_array, src_transform, src_region
 
         src_height, src_width = shift_array.shape
 
@@ -787,7 +803,7 @@ class GridWriter:
         tags: Optional[Mapping[str, str] | Dict[str, str]] = None,
         transform: Optional[Any] = None,
         nodata: Optional[float] = None,
-    ) -> str:
+    ) -> Path:
         """Write a grid to a GeoTIFF.
 
         Args:
@@ -802,13 +818,9 @@ class GridWriter:
         Returns:
             Path to the written GeoTIFF.
         """
-        filename = str(filename)  # tmp, update to use Path
-        dirname = os.path.dirname(filename)
-        if dirname and not os.path.exists(dirname):
-            os.makedirs(dirname)
+        filename = Path(filename).with_suffix(".tif")
+        filename.parent.mkdir(parents=True, exist_ok=True)
 
-        if not filename.endswith(".tif"):
-            filename = os.path.splitext(filename)[0] + ".tif"
         rows, cols = data.shape
         if transform is None:
             if isinstance(region, str):
@@ -845,7 +857,7 @@ class GridWriter:
         return filename
 
 
-def calculate_psmsl_msl(csv_path: str) -> float:
+def calculate_psmsl_msl(csv_path: str | Path) -> float:
     """Reads a PSMSL time-series CSV generated by fetchez, filters out
     missing data flags (-99999), and calculates the all-time Mean Sea Level.
 
@@ -858,10 +870,11 @@ def calculate_psmsl_msl(csv_path: str) -> float:
 
     import csv
 
+    csv_path = Path(csv_path)
     valid_measurements = []
 
     try:
-        with open(csv_path, "r", encoding="utf-8") as f:
+        with csv_path.open("r", encoding="utf-8") as f:
             reader = csv.reader(f, delimiter=";")
             for row in reader:
                 if len(row) < 4:
@@ -944,12 +957,12 @@ class GridGen:
 
         _ = run_fetchez([tides_fetcher], threads=1)
 
-        geojson_path = tides_fetcher.results[0]["dst_fn"]
-        if not os.path.exists(geojson_path):
+        geojson_path = Path(tides_fetcher.results[0]["dst_fn"])
+        if not geojson_path.exists():
             logger.error(f"GeoJSON file not found: {geojson_path}")
             return None
 
-        with open(geojson_path, "r") as f:
+        with geojson_path.open("r") as f:
             data = json.load(f)
 
         features = data.get("features", [])

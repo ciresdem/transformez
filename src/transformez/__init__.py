@@ -30,12 +30,11 @@ from .generation import build_shift_grid
 
 import os
 import glob
-
 # Expose the module for fetchez
 # from .modules import TransformezMod
 
 
-def _find_proj_lib():
+def _find_proj_lib() -> str | None:
     """Locate the best available PROJ_LIB path."""
 
     try:

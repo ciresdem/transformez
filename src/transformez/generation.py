@@ -135,7 +135,7 @@ class ShiftGrid:
         return ShiftGrid(
             array=array,
             uncertainty=unc_array,
-            region=self.region,
+            region=region,
             crs=dst_crs,
             transform=transform,
             source_reference=self.source_reference,
@@ -147,7 +147,7 @@ class ShiftGrid:
             cache_dir=self.cache_dir,
         )
 
-    def write(self, filename: Optional[str] = None, **kwargs):
+    def write(self, filename: Optional[str | Path] = None, **kwargs):
         from .grid_engine import GridWriter
 
         path = Path(filename) if filename is not None else self.storage_path()
@@ -253,7 +253,7 @@ def build_shift_grid(
     buffer_distance_m: Optional[float] = None,
     max_vdatum_extension_m: Optional[float] = None,
     extrapolate_inland: bool = False,
-    cache_dir: Optional[str] = None,
+    cache_dir: Optional[str | Path] = None,
     use_stations: bool = False,
     verbose: bool = False,
 ) -> ShiftGrid:

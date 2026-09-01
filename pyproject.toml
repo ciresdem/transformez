@@ -110,6 +110,21 @@ module = [
 ignore_missing_imports = true
 follow_untyped_imports = true
 
+[tool.ruff.lint]
+# select = ["ALL"]  # Goal :)
+extend-select = [  # Extend the default ruleset:
+    "B",
+    "F",
+    "PTH",
+    "T20",  # flake8-print <https://docs.astral.sh/ruff/rules/#flake8-print-t20>
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow print() statements in modules where they are expected
+"src/transformez/htdp.py" = ["T201"]
+"src/transformez/__init__.py" = ["PTH"]
+"tests/**/*.py" = ["T201", "PTH"]
+
 [[tool.mypy.overrides]]
 module = [
     "scipy.*",

@@ -11,7 +11,7 @@ Some modules for `fetchez`
 :license: MIT, see LICENSE for more details.
 """
 
-import os
+from pathlib import Path
 import logging
 
 from fetchez import cli
@@ -61,9 +61,7 @@ class TransformezMod(FetchModule):
         s_name = str(self.src_datum).replace(":", "_")
         d_name = str(self.dst_datum).replace(":", "_")
         w, e, s, n = self.region
-        self.dst_fn = os.path.join(
-            self._outdir, f"shift_{s_name}_to_{d_name}_{w}_{s}.tif"
-        )
+        self.dst_fn = Path(self._outdir) / f"shift_{s_name}_to_{d_name}_{w}_{s}.tif"
 
     def run(self):
         from fetchez import utils

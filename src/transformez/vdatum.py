@@ -15,6 +15,7 @@ import os
 import logging
 import zipfile
 import subprocess
+from pathlib import Path
 from fetchez.core import Fetch
 
 from . import utils
@@ -75,10 +76,8 @@ class Vdatum:
     def vdatum_locate_jar(self):
         """Find the VDatum executable on the local system."""
 
-        cache_path = os.path.abspath(
-            os.path.join(os.getcwd(), "transformez_cache", "vdatum", "vdatum.jar")
-        )
-        if os.path.exists(cache_path):
+        cache_path = Path(Path.cwd() / "transformez_cache" / "vdatum" / "vdatum.jar")
+        if cache_path.exists():
             self.jar = cache_path
             return [cache_path]
 
@@ -91,9 +90,9 @@ class Vdatum:
 
         logger.debug("Searching root filesystem for vdatum.jar...")
         results = []
-        for root, dirs, files in os.walk("/"):
+        for root, _dirs, files in os.walk("/"):
             if "vdatum.jar" in files:
-                results.append(os.path.abspath(os.path.join(root, "vdatum.jar")))
+                results.append(Path(Path(root) / "vdatum.jar").resolve())
                 break
 
         if not results:
@@ -194,13 +193,13 @@ def install_vdatum_jar():
         )
         return
 
-    cache_dir = os.path.join(os.getcwd(), "transformez_cache", "vdatum")
-    os.makedirs(cache_dir, exist_ok=True)
+    cache_dir = Path(Path.cwd() / "transformez_cache" / "vdatum")
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # current version 4.8
     # url = "https://vdatum.noaa.gov/download/data/vdatum_all_20250917.zip"
     url = "https://vdatum.noaa.gov/download/data/vdatum_v4.8.zip"
-    zip_path = os.path.join(cache_dir, "vdatum.zip")
+    zip_path = cache_dir / "vdatum.zip"
 
     logger.info("Downloading VDatum Software (~2GB). This may take a while...")
     try:
@@ -213,7 +212,7 @@ def install_vdatum_jar():
     with zipfile.ZipFile(zip_path, "r") as z:
         z.extractall(cache_dir)
 
-    os.remove(zip_path)
+    zip_path.unlink()
 
-    jar_path = os.path.join(cache_dir, "vdatum", "vdatum.jar")
+    jar_path = cache_dir / "vdatum" / "vdatum.jar"
     logger.info(f"VDatum installed successfully! Engine located at: {jar_path}")

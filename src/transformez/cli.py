@@ -13,6 +13,7 @@ The command-line interface for Transformez.
 
 import sys
 import click
+from pathlib import Path
 from typing import Optional, Any
 
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
@@ -180,7 +181,7 @@ def transform_grid(
 # TRANSFORM EXISTING RASTER (DEM)
 # =====================================================================
 @transformez_cli.command("shift", cls=FetchezMainCommand)
-@click.argument("input_file", type=click.Path(exists=True))
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
 @click.option("-I", "--input-datum", required=True, help="Source datum (e.g., 'mllw').")
 @click.option(
     "-O", "--output-datum", required=True, help="Target datum (e.g., '5703:g2012b')."
@@ -242,7 +243,7 @@ def transform_grid(
     help="Save the aligned vertical shift grid to disk alongside the output DEM.",
 )
 def transform_raster(
-    input_file: str,
+    input_file: Path,
     input_datum: str,
     output_datum: str,
     in_units: str,
@@ -392,8 +393,8 @@ def install_vdatum() -> None:
 
 
 @vdatum_group.command("run", cls=FetchezMainCommand)
-@click.argument("input_file", type=click.Path(exists=True))
-@click.argument("output_file", type=click.Path())
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("output_file", type=click.Path(path_type=Path))
 @click.option(
     "-I", "--in-datum", required=True, help="VDatum input datum string (e.g., 'navd88')"
 )
