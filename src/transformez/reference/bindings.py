@@ -10,7 +10,9 @@ transformez.reference.types
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Any
+
+from pyproj import CRS
 
 from .types import VerticalReference, VerticalKind, AxisDirection
 
@@ -201,8 +203,11 @@ HTDP_FRAME_BINDINGS = {
     "EPSG:6319": HtdpFrameBinding(
         htdp_id=1, name="NAD_83(2011/CORS96/2007)", reference_epoch=1997.0
     ),
-    "EPSG:7662": HtdpFrameBinding(
+    "EPSG:7663": HtdpFrameBinding(
         htdp_id=8, name="WGS_84(G1674)", reference_epoch=2000.0
+    ),
+    "EPSG:4979": HtdpFrameBinding(
+        htdp_id=10, name="WGS_84(G2139)", reference_epoch=2020.0
     ),
 }
 
@@ -233,6 +238,7 @@ def get_operation_binding(
 
 
 def get_htdp_frame_binding(
-    reference_id: str,
+    reference_id: Any,
 ) -> HtdpFrameBinding | None:
-    return HTDP_FRAME_BINDINGS.get(reference_id.upper())
+    resolved_reference_id = CRS.from_user_input(reference_id).srs
+    return HTDP_FRAME_BINDINGS.get(resolved_reference_id.upper())

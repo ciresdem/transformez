@@ -403,6 +403,12 @@ class Datums:
             "default_geoid": "g2018",
             "ellipsoid": 6319,
         },
+        6643: {
+            "name": "ASVD02 height",
+            "vdatum_id": "asvd02:m:height",
+            "default_geoid": "asvd02",
+            "ellipsoid": 6321,
+        },
         # Canada (CGVD2013 uses CGG2013 geoid)
         # Note: You need to ensure 'CGG2013' is fetchable via your fetcher or map it to a filename
         6647: {
@@ -439,6 +445,7 @@ class Datums:
         "egm2008": {"name": "EGM2008", "uncertainty": 0, "provider": "proj"},
         "egm96": {"name": "EGM96", "uncertainty": 0, "provider": "proj"},
         "CGG2013": {"name": "CGG2013", "uncertainty": 0.01, "provider": "proj"},
+        "asvd02": {"name": "ASVD02", "uncertainty": 0, "provider": "proj"},
     }
 
     MODELS: Dict[str, Dict[str, Any]] = {
