@@ -135,7 +135,7 @@ CUSTOM_VERTICAL_REFERENCES = {
     ),
     "epsg:6642": VerticalReference(
         id="epsg:6642",
-        name="vivd09 height",
+        name="VIVD09 height",
         kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
         axis_direction=AxisDirection.UP,
         unit_name="metre",
