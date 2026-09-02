@@ -31,6 +31,9 @@ LEGACY_ALIASES = {
     "mss": "global:mss",
     "lat": "global:lat",
     "hat": "global:hat",
+    "9001": "global:lat",
+    "9002": "global:hat",
+    "9003": "global:mss",
 }
 
 
@@ -210,7 +213,12 @@ def parse_reference(
     if not text:
         raise InvalidReferenceError("Reference cannot be empty.")
 
-    legacy_id = LEGACY_ALIASES.get(text.casefold())
+    if "+" in text:
+        legacy_mapping = {"horizontal": text.split("+")[0]}
+        legacy_mapping["vertical"] = text.split("+")[1]
+        return parse_reference(legacy_mapping)
+
+    legacy_id = LEGACY_ALIASES.get(text.split("+")[-1].casefold())
     if legacy_id:
         warn_legacy_alias(text, legacy_id)
         text = legacy_id

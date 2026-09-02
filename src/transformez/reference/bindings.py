@@ -27,6 +27,7 @@ class OperationBinding:
     provider_datum: str | None = None
     native_frame: str | None = None
     default_model: str | None = None
+    global_proxy: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
