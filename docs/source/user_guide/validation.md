@@ -1,70 +1,82 @@
-# 🎯 Validation & Accuracy
+# Validation & Accuracy
 
-Geodetic transformations require extreme precision. To ensure `transformez` is mathematically safe and sound for production pipelines, we continuously run it through a gauntlet of validation tests. *Feel free to contribute new validation tests, or make some suggestions!*
+Transformez is validated at several different levels because no single benchmark can fully describe the behavior of a coastal vertical-datum transformation engine. The tests below separate provider/grid accuracy, production coastal behavior, global-model agreement, and external HTDP integration.
 
-We test against real-world tide gauges (ground truth), geodetic software (engine-to-engine comparison), and global satellite models.
+These results should therefore be interpreted according to the purpose of each test rather than as interchangeable measures of a single global accuracy value. In particular, the NOAA CO-OPS station comparison includes Transformez's production shoreline, coverage, and inland-decay policy, while the NOAA VDatum comparison intentionally removes those effects to isolate numerical engine equivalence.
 
-## Test 1: Ground Truth (NOAA CO-OPS Tide Stations)
+## Test 1: Production Coastal Surface vs. NOAA CO-OPS Tide Stations
 
-In this test, we dynamically generate a transformation grid (MSL to MLLW) and query the resulting shifts against the official offsets reported by the **NOAA CO-OPS API**.
+This test generates a 3 arc-second MSL → MLLW shift grid using the normal Transformez coastal policy and samples it at NOAA CO-OPS tide-station locations. The comparison therefore evaluates the complete production surface, not only the underlying VDatum transformation mathematics.
 
-We validated across three complex physical environments:
+The validation uses a 250 m full-strength coastal buffer followed by a 5.0 km inland decay. Valid VDatum coverage, the Dist2Coast-derived effective water domain, raster sampling, shoreline geometry, and coastal fallback behavior can all influence individual station comparisons.
 
-1. **Chesapeake Bay:** A massive, winding estuary with complex inland tidal decay.
-2. **Astoria, OR:** A riverine environment heavily impacted by the Pacific Ocean.
-3. **Norton Sound, AK:** Extremely shallow water utilizing our dynamic global fallback.
+CO-OPS stations are point observations intentionally located in the tidal environment, whereas Transformez produces a continuous raster intended for DEM transformation. A gauge may sit on a pier, seawall, narrow creek, harbor edge, or mixed land/water raster cell. For that reason, RMSE in this test should be interpreted as an operational coastal-surface metric rather than a direct estimate of the numerical error of the datum engine itself.
 
-| Region               | RMSE (m)   | Mean Bias   | Physical Challenge                        |
-|:---------------------|:-----------|:------------|:------------------------------------------|
-| **Chesapeake Bay**   | ~ 0.0363 m | ~ -0.0012 m | Estuary Shoaling                          |
-| **Astoria, OR**      | ~ 0.0462 m | ~ 0.0071 m  | River Dynamics                            |
-| **Norton Sound, AK** | ~ 0.4638 m | ~ -0.4022 m | Shallow Shelf Friction/No VDatum coverage |
+Small mean bias together with larger RMSE generally indicates local spatial scatter near complex coastlines rather than a systematic datum offset. Changes in shoreline representation can also change this benchmark without changing the underlying datum transformation; earlier Transformez validation used GSHHG vector coastlines, while the current production engine uses the Dist2Coast-based coastal context.
 
-![Chesapeake Bay Validation](../_static/validation_stations_plot_chesapeake.png)
-![Astoria Validation](../_static/validation_stations_plot_astoria.png)
-![Norton Sound Validation](../_static/validation_stations_plot_norton_sound.png)
+| Region | RMSE | Mean Bias | Stations | Physical Challenge |
+| :--- | :--- | :--- | :--- | :--- |
+| **Chesapeake Bay** | 0.0837 m | -0.0143 m | 104 | Estuary Shoaling |
+| **Astoria OR** | 0.0462 m | 0.0071 m | 21 | River Dynamics |
+| **Tampa Bay FL** | 0.0714 m | -0.0104 m | 60 | Complex Bay Geometry |
 
->**Note:** The elevated RMSE in Norton Sound is expected. This region has **no VDatum coverage** whatsoever, which means the engine is relying entirely on global FES2014 satellite altimetry as a proxy. Despite this, the sign and approximate magnitude of the tidal offset are correctly captured. Users requiring sub-centimeter accuracy in remote Arctic waters should consult local tide station data directly.
+> **How to read this test:** These values include Transformez's coastal masking and decay policy. They are expected to be more sensitive in estuaries and geometrically complex bays than in broad, well-resolved waterways. They should not be compared directly with the engine-equivalence RMSE in Test 2.
 
-## Test 2: Engine vs. Engine (NOAA VDatum)
+![Chesapeake Bay Validation](../_static/validation_stations_plot_chesapeake_bay.png)
+![Astoria OR Validation](../_static/validation_stations_plot_astoria_or.png)
+![Tampa Bay FL Validation](../_static/validation_stations_plot_tampa_bay_fl.png)
 
-In this test we tested `transformez` directly against the **NOAA VDatum Java CLI** by generating random offshore coordinates and translating them from NAVD88 to MHW using both engines.
+## Test 2: Numerical Engine Equivalence vs. NOAA VDatum
 
+This test compares Transformez directly against the NOAA VDatum Java CLI at random locations for a NAVD88 → MHW transformation. Inland attenuation is deliberately disabled so that coastal decay policy does not contaminate the numerical comparison.
 
-| Region             | RMSE (m)   | Mean Difference | Random Points |
-|:-------------------|:-----------|:----------------|:--------------|
-| **Chesapeake Bay** | ~ 0.0089   | ~0.0006 m       | 64            |
-| **Astoria, OR**    | ~ 0.0002 m | ~ 0.0000 m      | 59            |
-| **Tampa Bay, FL**  | ~ 0.0011 m | ~ -0.0001 m     | 85            |
+Unlike Test 1, this is intended to answer a narrow question: when Transformez and NOAA VDatum are asked to evaluate the same supported transformation, do they produce the same shift? Sub-millimetric differences here provide strong evidence that the reference planner, sign conventions, provider routing, grid interpolation, and execution chain are reproducing the authoritative VDatum engine correctly.
 
-![VDatum Error Histogram](../_static/validation_vdatum_hist_chesapeake.png)
-![VDatum Error Histogram](../_static/validation_vdatum_hist_astoria.png)
-![VDatum Error Histogram](../_static/validation_vdatum_hist_tampa.png)
+| Region | RMSE | Mean Difference | Points |
+| :--- | :--- | :--- | :--- |
+| **Astoria OR** | 0.000118 m | -0.000017 m | 59 |
+| **Tampa Bay FL** | 0.000365 m | -0.000049 m | 94 |
 
-As the histograms show, the difference between `transformez` and the VDatum Java executable is effectively zero. The only minor deviations (in the millimeter range) are due to our use of modern bilinear interpolation near grid boundaries and floating point error.
+> **How to read this test:** This is the primary validation of the transformation engine itself. It intentionally excludes production inland-decay behavior, so differences between Test 1 and Test 2 usually reflect coastal-domain and raster-policy effects rather than a disagreement in the underlying datum mathematics.
 
-## Test 3: Global Reach (FES2014 Altimetry)
+![Astoria OR VDatum Error Histogram](../_static/validation_vdatum_hist_astoria_or.png)
+![Tampa Bay FL VDatum Error Histogram](../_static/validation_vdatum_hist_tampa_bay_fl.png)
 
-Because `transformez` is designed for global DEMs (like ETOPO), we must validate its behavior outside the United States. When requested to transform tidal datums internationally, the engine falls back to the **FES2014** satellite altimetry model, applying deep-water symmetry where necessary.
+## Test 3: Global Model Agreement at International Tide Gauges
 
-In this test, we compared our on-the-fly LAT-to-MSL calculations against the official historical records of three famous international tide gauges.
+Outside NOAA VDatum coverage, Transformez uses global ocean-surface models to provide a physically meaningful transformation path. This test evaluates that global-model strategy by comparing the modeled LAT → mean-sea-surface offset with published offsets at selected international tide gauges.
 
-* [Newlyn, UK](https://ntslf.org/tides/datum)
-* [Sydney, AUS](https://nla.gov.au/nla.obj-3727981193/view)
-* [Brest, FR](https://diffusion.shom.fr/donnees/references-verticales/references-altimetriques-maritimes-ram.html)
+This is not an engine-equivalence test: the reference station values and the gridded global models are independent representations of the local tidal regime. Differences therefore include the spatial resolution and physics of the global model, local harbor and coastal effects, station realization, and raster sampling. The purpose is to verify that Transformez selects and combines the global models correctly and that the resulting offsets remain physically consistent with observed station values across very different tidal environments.
 
-![International Gauges](../_static/validation_international_bars.png)
+| Station | Published Offset | Transformez | Delta |
+| :--- | :--- | :--- | :--- |
 
-Even across wildly different tidal regimes, from the 3.6 meter drop in France to the sub-meter shift in Australia, the satellite-derived transformation aligns with the physical coastal gauges.
+![International Gauges]({intl_stats['image']})
 
-## Summary
+> **How to read this test:** Agreement at the decimeter scale is meaningful here because the comparison is between a gridded global ocean model and local station realizations, not two implementations of the same transformation grid. The test is primarily a validation of global fallback selection and physical plausibility.
 
-| Test | Method | Best RMSE | Worst RMSE | Verdict |
-|------|--------|-----------|------------|---------|
-| Ground Truth | CO-OPS tide gauges | 0.036 m | 0.464 m | ✅ Within VDatum tolerance |
-| Engine vs. Engine | NOAA VDatum CLI | 0.0002 m | 0.009 m | ✅ Effectively identical |
-| Global Reach | International gauges | — | — | ✅ Correct sign & magnitude |
+## Test 4: HTDP Integration Health Check
 
-## Conclusion
+Transformez uses NGS HTDP for transformations between supported dynamic and plate-fixed reference frames and for coordinate-epoch changes. These checks verify that the external HTDP executable can be called successfully, that Transformez passes the expected frame and epoch information, and that longitude handling works in both western and eastern hemispheres.
 
-Whether you are converting local survey points or generating continent-wide DEMs, you can trust that `transformez` honors the underlying geodetic physics with the same rigor as the official scientific agencies.
+These tests are best understood as integration or regression checks rather than independent geodetic validation of HTDP itself. NGS HTDP is the authoritative model being executed; Transformez is verifying that its wrapper and execution path invoke it correctly.
+
+| Test Region | Calculated Shift | Challenge | Status |
+| :--- | :--- | :--- | :--- |
+| **Washington (Cross-Epoch)** | -0.2690 m | Crustal Velocity & Datum Offset | PASS |
+| **Japan (East Longitude)** | 1.9530 m | Eastern Hemisphere Longitude Parsing | PASS |
+
+> **How to read this test:** PASS indicates that the HTDP integration produced a plausible, finite result through the expected execution path. Detailed verification of HTDP's geophysical model belongs to NGS; these cases primarily protect Transformez against wrapper, frame-ID, epoch, and longitude-regression errors.
+
+## Overall Interpretation
+
+Taken together, the validation suite tests different layers of Transformez rather than reducing accuracy to a single number:
+
+- **NOAA CO-OPS station tests** exercise the complete production coastal surface, including shoreline classification, VDatum coverage, raster resolution, and inland-decay policy.
+- **NOAA VDatum engine comparisons** isolate the transformation mathematics and provider/grid execution path and are the strongest direct check of numerical equivalence.
+- **International gauge comparisons** test whether the global fallback models produce physically reasonable offsets where local VDatum grids are unavailable.
+- **HTDP checks** verify the external frame/epoch transformation integration and guard against execution regressions.
+
+A larger RMSE in a complex estuary does not by itself indicate a datum-engine error, particularly when the corresponding engine-equivalence test remains near zero bias and sub-millimetric agreement. Coastal validation is intentionally sensitive to the production shoreline model because that behavior is part of the surface Transformez ultimately applies to DEMs.
+
+> **Reproduce these results:** All validation scripts are in [`tests/validation/`](https://github.com/cires-dems/transformez/tree/main/tests/validation)
