@@ -27,7 +27,6 @@ from rasterio.transform import from_bounds, Affine
 
 from .reference.types import ParsedReference
 from .reference.parser import parse_reference
-from .reference.adapter import adapt_parsed_reference
 
 from fetchez.spatial import parse_region, Region
 from fetchez.utils import str_or, str2inc
@@ -36,9 +35,6 @@ from transformez import __version__
 
 
 logger = logging.getLogger(__name__)
-
-
-TEST_REFERENCE = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,16 +287,12 @@ def build_shift_grid(
         GeneratedGrid, or None if failed.
     """
 
-    from .transform import VerticalTransform
     from .reference.executor import ExecutionContext, TransformationExecutor
     from .reference.resolver import resolve_reference
     from .reference.planner import TransformationPlanner
 
     src_ref = parse_reference(datum_in)
     dst_ref = parse_reference(datum_out)
-
-    src_ref_legacy = adapt_parsed_reference(src_ref)
-    dst_ref_legacy = adapt_parsed_reference(dst_ref)
 
     if isinstance(region, Region):
         region_obj = region
@@ -327,9 +319,6 @@ def build_shift_grid(
     if src_ref.vertical is None or dst_ref.vertical is None:
         raise ValueError("A vertical reference is required.")
 
-    if src_ref_legacy.vertical is None or dst_ref_legacy.vertical is None:
-        raise ValueError("A vertical reference is required.")
-
     if decay_distance_m is not None and decay_distance_m < 0:
         raise ValueError("decay_distance_m must be >= 0")
 
@@ -339,99 +328,64 @@ def build_shift_grid(
     if max_vdatum_extension_m is not None and max_vdatum_extension_m < 0:
         raise ValueError("max_vdatum_extension_m must be >= 0")
 
-    if not TEST_REFERENCE:
-        # --- Legacy VerticalTransform ---
-        vt = VerticalTransform(
-            region=wgs84_region,
-            nx=nx,
-            ny=ny,
-            epsg_in=src_ref_legacy.vertical.epsg,
-            epsg_out=dst_ref_legacy.vertical.epsg,
-            geoid_in=src_ref_legacy.vertical.geoid,
-            geoid_out=dst_ref_legacy.vertical.geoid,
-            epoch_in=effective_epoch_in,
-            epoch_out=effective_epoch_out,
-            decay_pixels=decay_pixels,
-            decay_distance_m=decay_distance_m,
-            buffer_distance_m=buffer_distance_m,
-            max_vdatum_extension_m=max_vdatum_extension_m,
-            extrapolate_inland=extrapolate_inland,
-            cache_dir=cache_dir,
-            use_stations=use_stations,
-            verbose=verbose,
-        )
-        try:
-            shift_array, uncertainty_array = vt._vertical_transform()
-        except Exception as exc:
-            raise RuntimeError(
-                "Transformation failed to generate a shift grid."
-            ) from exc
-    else:
-        # --- Reference Module ---
+    # --- Reference Module ---
+    resolved_src = resolve_reference(
+        src_ref,
+        default_epoch=float(effective_epoch_in),
+    )
 
-        resolved_src = resolve_reference(
-            src_ref,
-            default_epoch=float(effective_epoch_in),
-        )
+    resolved_dst = resolve_reference(
+        dst_ref,
+        default_epoch=float(effective_epoch_out),
+    )
+    plan = TransformationPlanner.build_plan(resolved_src, resolved_dst)
 
-        resolved_dst = resolve_reference(
-            dst_ref,
-            default_epoch=float(effective_epoch_out),
-        )
-        plan = TransformationPlanner.build_plan(resolved_src, resolved_dst)
+    context = ExecutionContext(
+        region=wgs84_region,
+        nx=nx,
+        ny=ny,
+        cache_dir=Path(cache_dir) if cache_dir else Path.cwd() / "transformez_cache",
+        decay_pixels=decay_pixels,
+        decay_distance_m=decay_distance_m,
+        buffer_distance_m=buffer_distance_m,
+        max_vdatum_extension_m=max_vdatum_extension_m,
+        extrapolate_inland=extrapolate_inland,
+        use_stations=use_stations,
+        verbose=verbose,
+    )
 
-        context = ExecutionContext(
-            region=wgs84_region,
-            nx=nx,
-            ny=ny,
-            cache_dir=Path(cache_dir)
-            if cache_dir
-            else Path.cwd() / "transformez_cache",
-            decay_pixels=decay_pixels,
-            decay_distance_m=decay_distance_m,
-            buffer_distance_m=buffer_distance_m,
-            max_vdatum_extension_m=max_vdatum_extension_m,
-            extrapolate_inland=extrapolate_inland,
-            use_stations=use_stations,
-            verbose=verbose,
-        )
+    try:
+        executor = TransformationExecutor(context=context)
+        result = executor.execute(plan)
+        shift_array = result.shift
+        trace = result.trace
+        uncertainty_array = None
 
-        try:
-            executor = TransformationExecutor(context=context)
-            result = executor.execute(plan)
-            shift_array = result.shift
-            trace = result.trace
-            uncertainty_array = None
+        if verbose:
+            logger.info("-" * 60)
+            logger.info(f"Transformation Execution Trace: {datum_in} -> {datum_out}")
 
-            if verbose:
-                logger.info("-" * 60)
+            if not trace:
+                logger.info("  ✓ Identity Transformation (No Shift Applied)")
+            else:
+                for step_desc in trace:
+                    logger.info(f"  {step_desc}")
+
+            if np.any(shift_array) and not np.isnan(shift_array).all():
+                mean_shift = np.nanmean(shift_array)
+                min_shift = np.nanmin(shift_array)
+                max_shift = np.nanmax(shift_array)
                 logger.info(
-                    f"Transformation Execution Trace: {datum_in} -> {datum_out}"
+                    f"  => Total Shift Applied (Mean: {mean_shift:.3f}m | "
+                    f"Min: {min_shift:.3f}m | Max: {max_shift:.3f}m)"
                 )
+            else:
+                logger.info("  => Total Shift Applied (Zero / Identity)")
 
-                if not trace:
-                    logger.info("  ✓ Identity Transformation (No Shift Applied)")
-                else:
-                    for step_desc in trace:
-                        logger.info(f"  {step_desc}")
+            logger.info("-" * 60)
 
-                if np.any(shift_array) and not np.isnan(shift_array).all():
-                    mean_shift = np.nanmean(shift_array)
-                    min_shift = np.nanmin(shift_array)
-                    max_shift = np.nanmax(shift_array)
-                    logger.info(
-                        f"  => Total Shift Applied (Mean: {mean_shift:.3f}m | "
-                        f"Min: {min_shift:.3f}m | Max: {max_shift:.3f}m)"
-                    )
-                else:
-                    logger.info("  => Total Shift Applied (Zero / Identity)")
-
-                logger.info("-" * 60)
-
-        except Exception as exc:
-            raise RuntimeError(
-                "Transformation failed to generate a shift grid."
-            ) from exc
+    except Exception as exc:
+        raise RuntimeError("Transformation failed to generate a shift grid.") from exc
 
     provenance = {
         "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",

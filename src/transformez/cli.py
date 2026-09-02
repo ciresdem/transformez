@@ -24,7 +24,7 @@ from transformez import api
 
 TRANSFORMEZ_COMMANDS = {
     "Execution": ["build", "shift"],
-    "Discovery": ["list", "list-reference", "prefetch", "plan"],
+    "Discovery": ["list", "prefetch", "plan"],
     "External": ["htdp", "vdatum"],
 }
 
@@ -384,8 +384,8 @@ def transform_plan(
 
 
 # --- LIST DATUMS, ETC. ---
-@transformez_cli.command("list-reference", cls=FetchezMainCommand)
-def transform_list_reference() -> None:
+@transformez_cli.command("list", cls=FetchezMainCommand)
+def transform_list() -> None:
     """List all supported vertical datums, EPSG codes, and geoids."""
 
     from transformez.reference.bindings import (
@@ -451,58 +451,6 @@ def transform_list_reference() -> None:
         "  4. Constant Offset   : Safety fallback for sparse coverage (< 3 stations)."
     )
     click.echo("  5. Inland Decay      : Coast-aware physical distance tidal decay.")
-
-
-@transformez_cli.command("list", cls=FetchezMainCommand)
-def transform_list() -> None:
-    """List all supported vertical datums, EPSG codes, and geoids."""
-
-    from transformez.definitions import Datums
-
-    click.secho("\n🌊 Supported Tidal Surfaces:", fg="cyan", bold=True)
-    for key, v in Datums.SURFACES.items():
-        region_str = v.get("region", "global").upper()
-        click.echo(f"  {key:<12} : {v.get('name', key):<30} [{region_str}]")
-
-    click.secho("\n🌐 Ellipsoidal / Frame Datums (EPSG):", fg="cyan", bold=True)
-    click.echo(f"  {'4979':<12} : WGS84 - World Geodetic System 1984")
-    click.echo(f"  {'6319':<12} : NAD83 - North American Datum 1983")
-
-    click.secho("\n🏔️  Orthometric / Geoid-Based (EPSG):", fg="cyan", bold=True)
-    for epsg_key, v in Datums.CDN.items():
-        epsg_code = v.get("epsg", epsg_key)
-        geoid_str = v.get("default_geoid", "None")
-        click.echo(
-            f"  {str(epsg_code):<12} : {v.get('name', 'Unknown'):<30} (Default Geoid: {geoid_str})"
-        )
-
-    click.secho("\n🌍 Available Geoids:", fg="cyan", bold=True)
-    click.echo(f"  {', '.join(Datums.GEOIDS.keys())}")
-
-    # ---> HIERARCHY DOCUMENTATION <---
-    click.secho(
-        "\n🔄 Dynamic Fallback Hierarchy (Coastal/Tidal):", fg="magenta", bold=True
-    )
-    click.echo("  1. NOAA VDatum       : High-res regional hydrodynamics (USA Base).")
-    click.echo(
-        "  2. FES2014 / Global  : Satellite altimetry proxy for offshore/international."
-    )
-    click.echo(
-        "  3. Tide Station RBF  : Live CO-OPS splines (Activated via --use-stations)."
-    )
-    click.echo(
-        "  4. Constant Offset   : Safety fallback for sparse coverage (< 3 stations)."
-    )
-    click.echo(
-        "  5. Inland Decay      : Coast-aware physical or pixel-based tidal decay."
-    )
-
-    click.echo(
-        """
-        Datum syntax:
-          Specify a geoid with DATUM:GEOID, e.g. 5703:g2012b.\n
-        """
-    )
 
 
 # --- HTDP CLI GROUP ---
