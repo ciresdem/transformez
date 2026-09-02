@@ -111,7 +111,7 @@ CUSTOM_VERTICAL_REFERENCES = {
     # GRAVITATIONAL
     "epsg:5703": VerticalReference(
         id="epsg:5703",
-        name="NAVD88",
+        name="NAVD88 height",
         kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
         axis_direction=AxisDirection.UP,
         unit_name="metre",
@@ -120,6 +120,14 @@ CUSTOM_VERTICAL_REFERENCES = {
     "epsg:3855": VerticalReference(
         id="epsg:3855",
         name="EGM2008 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:5773": VerticalReference(
+        id="epsg:5773",
+        name="EGM96 height",
         kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
         axis_direction=AxisDirection.UP,
         unit_name="metre",
@@ -144,6 +152,14 @@ CUSTOM_VERTICAL_REFERENCES = {
     "epsg:6643": VerticalReference(
         id="epsg:6643",
         name="ASVD02 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:6647": VerticalReference(
+        id="epsg:6647",
+        name="CGVD2013 height",
         kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
         axis_direction=AxisDirection.UP,
         unit_name="metre",
@@ -236,6 +252,14 @@ OPERATION_BINDINGS = {
         native_frame="EPSG:4979",
         default_model="egm2008",
     ),
+    "epsg:5773": OperationBinding(
+        reference_id="epsg:5773",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="EPSG:4979",
+        default_model="egm96",
+    ),
     "epsg:6641": OperationBinding(
         reference_id="epsg:6641",
         engine="proj",
@@ -259,6 +283,14 @@ OPERATION_BINDINGS = {
         provider_datum=None,
         native_frame="epsg:6321",
         default_model="g2012bs0",
+    ),
+    "epsg:6647": OperationBinding(
+        reference_id="epsg:6647",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="epsg:6321",
+        default_model="CGG2013",
     ),
 }
 
