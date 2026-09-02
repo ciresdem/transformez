@@ -138,7 +138,7 @@ CUSTOM_VERTICAL_REFERENCES = {
         name="vivd09 height",
         kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
         axis_direction=AxisDirection.UP,
-        uit_name="metre",
+        unit_name="metre",
         unit_to_metre=1.0,
     ),
     "epsg:6643": VerticalReference(
@@ -146,7 +146,7 @@ CUSTOM_VERTICAL_REFERENCES = {
         name="ASVD02 height",
         kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
         axis_direction=AxisDirection.UP,
-        uit_name="metre",
+        unit_name="metre",
         unit_to_metre=1.0,
     ),
 }
@@ -245,7 +245,7 @@ OPERATION_BINDINGS = {
         default_model="g2018",
     ),
     "epsg:6642": OperationBinding(
-        reference_id="epsg:6641",
+        reference_id="epsg:6642",
         engine="proj",
         provider="cdn",
         provider_datum=None,
