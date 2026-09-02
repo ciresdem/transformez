@@ -35,11 +35,9 @@ from dataclasses import dataclass
 
 from pyproj import Transformer
 
-from .transform import VerticalTransform
 from .grid_engine import GridEngine
 from .utils import RasterQuery, UNITS
 from .reference.parser import parse_reference
-from .reference.adapter import adapt_reference
 from .generation import build_shift_grid, ShiftGrid
 
 from fetchez.spatial import parse_region, Region
@@ -468,129 +466,244 @@ def prefetch_region(
     cache_dir: Optional[str | Path] = None,
     verbose: bool = True,
 ) -> bool:
-    """Pre-download transformation grids and reference datasets for offline field use.
+    """Pre-download transformation resources for offline use.
+
+    Targeted prefetching uses the reference parser, resolver, and planner to
+    determine the same execution path that a real transformation would use,
+    then asks :class:`GridFetcher` to acquire the resources required by each
+    planned grid operation.
+
+    Full prefetching derives its inventory from ``OPERATION_BINDINGS`` rather
+    than the legacy ``Datums`` registry. This keeps prefetch behavior aligned
+    with the references and providers that the current transformation engine
+    can actually execute.
 
     Args:
-        region: Bounds as [W, E, S, N], a 'loc:' string, or a Region object.
-        datum_in: Source datum string to limit fetching to a specific chain.
-        datum_out: Target datum string to limit fetching to a specific chain.
-        fetch_all: If True, fetches ALL available geoids, tidal surfaces, coastlines.
+        region: Bounds as [W, E, S, N], a ``loc:`` string, or a Region object.
+        datum_in: Source reference used to build a targeted prefetch plan.
+        datum_out: Target reference used to build a targeted prefetch plan.
+        fetch_all: Fetch resources for all registered operation bindings.
         cache_dir: Directory where downloaded assets will be cached.
         verbose: Enable detailed logging.
 
     Returns:
-        True if prefetching succeeded, False otherwise.
+        True if prefetching completed without a fatal error, False otherwise.
     """
 
-    from .definitions import Datums
+    from .reference.bindings import OPERATION_BINDINGS
+    from .reference.fetcher import GridFetcher
+    from .reference.planner import (
+        FrameOperation,
+        GridOperation,
+        TransformationPlanner,
+    )
+    from .reference.resolver import resolve_reference
 
-    cache_dir = (
+    cache_path = (
         Path(cache_dir) if cache_dir is not None else Path.cwd() / "transformez_cache"
     )
+    cache_path.mkdir(parents=True, exist_ok=True)
 
     if isinstance(region, Region):
-        region_obj = region
+        region_obj = region.copy()
     else:
         regions = parse_region(region)
         if not regions:
             raise ValueError(f"Could not parse region: {region}")
         region_obj = regions[0]
 
+    # Transformation resources are stored and sampled in the engine's WGS84
+    # working domain. Normalize projected/geographic regions when an SRS is known.
+    region_srs = getattr(region_obj, "srs", None)
+    if region_srs:
+        if isinstance(region_srs, (list, tuple)):
+            if len(region_srs) != 1:
+                raise ValueError(
+                    f"Region must contain exactly one CRS, got {region_srs!r}"
+                )
+            region_srs = region_srs[0]
+
+        parsed_region_ref = parse_reference(region_srs)
+        region_crs = parsed_region_ref.horizontal
+        if region_crs is not None:
+            region_obj.srs = region_crs.to_epsg() or region_crs.to_wkt()
+            if region_crs.to_epsg() != 4326:
+                region_obj.warp("EPSG:4326")
+
     logger.info(f"Initiating offline prefetch for region: {region_obj}")
 
-    # Minimal dimensions (10x10) to avoid allocating memory for large arrays
-    vt_nx, vt_ny = 10, 10
+    # Resource discovery only needs a tiny target grid. The fetcher still uses
+    # the requested geographic region, so downloaded subsets retain useful
+    # spatial coverage without allocating a production-size shift grid.
+    fetcher = GridFetcher(
+        region=region_obj,
+        nx=10,
+        ny=10,
+        cache_dir=cache_path,
+        verbose=verbose,
+    )
+
+    def _prefetch_grid_operation(step: GridOperation) -> None:
+        """Acquire resources required by one planned grid operation."""
+
+        binding = step.binding
+        model = step.reference.model or binding.default_model
+
+        if binding.engine == "vdatum_grid":
+            if binding.provider_datum is None:
+                raise ValueError(
+                    f"VDatum binding {binding.reference_id!r} "
+                    "does not define provider_datum."
+                )
+            fetcher.fetch_vdatum_chain(
+                binding.provider_datum,
+                model,
+            )
+            return
+
+        if binding.engine == "global_model":
+            if binding.provider_datum is None:
+                raise ValueError(
+                    f"Global-model binding {binding.reference_id!r} "
+                    "does not define provider_datum."
+                )
+            fetcher.fetch_global_chain(
+                binding.provider_datum,
+                model=binding.provider,
+            )
+            return
+
+        if binding.engine in {"geoid_grid", "proj"}:
+            if model is None:
+                raise ValueError(
+                    f"Binding {binding.reference_id!r} does not define "
+                    "an executable geoid/model."
+                )
+            fetcher.fetch_geoid(model)
+            return
+
+        if binding.engine == "htdp":
+            return
+
+        raise ValueError(
+            f"Unsupported prefetch engine {binding.engine!r} "
+            f"for {binding.reference_id!r}."
+        )
 
     try:
-        if fetch_all or (not datum_in and not datum_out):
+        if fetch_all or (datum_in is None and datum_out is None):
             logger.info(
-                "Mode: FULL PREFETCH. Downloading all geoids, VDatum grids, and coastlines..."
+                "Mode: FULL PREFETCH. Fetching resources for all registered "
+                "reference bindings..."
             )
 
-            # Instantiate base engine to leverage internal fetchers
-            vt = VerticalTransform(
-                region=region_obj,
-                nx=vt_nx,
-                ny=vt_ny,
-                epsg_in=4979,  # Base WGS84
-                epsg_out=6319,  # Base NAD83
-                cache_dir=cache_dir,
-                verbose=verbose,
-            )
-
-            # Dist2Coast landmask
-            logger.info(" -> [1/5] Fetching Dist2Coast signed-distance grid...")
-            vt._fetch_dist2coast_m()
-
-            # All Registered Geoids
-            logger.info(" -> [2/5] Fetching Geoid grids...")
-            for g_name, g_def in Datums.GEOIDS.items():
-                provider = g_def.get("provider", "proj")
-                logger.info(f"    - Fetching Geoid: {g_name} ({provider})")
-                try:
-                    vt.fetch_grid(provider, datatype=g_name, query=g_name)
-                except Exception as e:
-                    logger.warning(f"    - Skipping '{g_name}': {e}")
-
-            # USA VDatum Tidal Grids
-            logger.info(" -> [3/5] Fetching VDatum regional grids...")
-            for s_key, s_def in Datums.SURFACES.items():
-                s_name = s_def.get("name", s_key)
-                if s_def.get("region") == "usa":
-                    logger.info(f"    - Fetching VDatum Surface: {s_name}")
-                    try:
-                        vt.fetch_grid("vdatum", datatype=s_name, query=s_name)
-                    except Exception as e:
-                        logger.warning(f"    - Skipping VDatum '{s_name}': {e}")
-
-            # Topography of the Sea Surface (TSS)
-            logger.info(" -> [4/5] Fetching VDatum TSS grid...")
+            # Dist2Coast is a shared ancillary resource used by tidal/global
+            # coastal processing but is not itself represented by a reference.
+            logger.info(" -> Fetching shared Dist2Coast coastal context...")
             try:
-                vt.fetch_grid("vdatum", datatype="tss", query="tss")
-            except Exception as e:
-                logger.warning(f"    - Skipping TSS: {e}")
+                fetcher.fetch_grid("dist2coast", variant="base")
+            except Exception as exc:
+                logger.warning(f"    - Dist2Coast unavailable: {exc}")
 
-            # Global Satellite Models (FES / SEANOE)
-            logger.info(" -> [5/5] Fetching Global FES / MSS proxy grids...")
-            for proxy_name in ["lat", "msl", "mss"]:
-                logger.info(f"    - Fetching Global Proxy: {proxy_name}")
-                try:
-                    vt.fetch_grid(
-                        "fes" if proxy_name != "mss" else "dtu",
-                        datatype=proxy_name,
-                        query=proxy_name,
+            # Fetch every unique executable resource represented by the current
+            # operation registry. Deduplicate equivalent provider/model requests
+            # so aliases or multiple CRSs do not trigger redundant downloads.
+            seen: set[tuple[str, str | None, str | None, str | None]] = set()
+
+            for reference_id, binding in sorted(OPERATION_BINDINGS.items()):
+                resource_key = (
+                    binding.engine,
+                    binding.provider,
+                    binding.provider_datum,
+                    binding.default_model,
+                )
+                if resource_key in seen:
+                    continue
+                seen.add(resource_key)
+
+                if binding.engine == "htdp":
+                    logger.debug(
+                        "    - %s uses HTDP; no gridded resource to prefetch.",
+                        reference_id,
                     )
-                except Exception as e:
-                    logger.warning(f"    - Skipping Global '{proxy_name}': {e}")
+                    continue
+
+                logger.info(
+                    " -> %s [%s / %s]",
+                    reference_id,
+                    binding.engine,
+                    binding.provider,
+                )
+
+                # Full prefetch operates from bindings directly. Build a tiny
+                # stand-in carrying the same fields used by the helper.
+                class _ReferenceView:
+                    model = binding.default_model
+
+                class _StepView:
+                    pass
+
+                step = _StepView()
+                step.binding = binding
+                step.reference = _ReferenceView()
+
+                try:
+                    _prefetch_grid_operation(step)  # type: ignore[arg-type]
+                except Exception as exc:
+                    # Full mode is best-effort by design: one unavailable model
+                    # should not prevent the remaining registered resources from
+                    # being cached.
+                    logger.warning(
+                        "    - Skipping %s: %s",
+                        reference_id,
+                        exc,
+                    )
 
         else:
-            src_ref = adapt_reference(datum_in)
-            dst_ref = adapt_reference(datum_out)
+            if datum_in is None or datum_out is None:
+                raise ValueError(
+                    "Targeted prefetch requires both datum_in and datum_out. "
+                    "Use fetch_all=True to prefetch all registered resources."
+                )
 
-            if src_ref.vertical is None or dst_ref.vertical is None:
-                raise ValueError("A vertical reference is required.")
+            source = resolve_reference(parse_reference(datum_in))
+            target = resolve_reference(parse_reference(datum_out))
+            plan = TransformationPlanner.build_plan(source, target)
 
             logger.info(
-                f"Mode: TARGETED PREFETCH for chain ({datum_in or 'WGS84'} ➔ {datum_out or 'NAD83'})..."
+                "Mode: TARGETED PREFETCH for planned chain (%s -> %s)...",
+                datum_in,
+                datum_out,
             )
 
-            vt = VerticalTransform(
-                region=region_obj,
-                nx=vt_nx,
-                ny=vt_ny,
-                epsg_in=src_ref.vertical.epsg or 4979,
-                epsg_out=dst_ref.vertical.epsg or 6319,
-                geoid_in=src_ref.vertical.geoid,
-                geoid_out=dst_ref.vertical.geoid,
-                cache_dir=cache_dir,
-                verbose=verbose,
-            )
+            if not plan.steps:
+                logger.info(
+                    "Transformation is an identity; no vertical resources "
+                    "need to be downloaded."
+                )
 
-            vt._vertical_transform()
+            for step in plan.steps:
+                if isinstance(step, FrameOperation):
+                    logger.info(
+                        " -> HTDP frame operation ID %s -> ID %s "
+                        "(no gridded resource to prefetch)",
+                        step.source_id,
+                        step.target_id,
+                    )
+                    continue
+
+                if isinstance(step, GridOperation):
+                    logger.info(
+                        " -> %s [%s / %s]",
+                        step.binding.reference_id,
+                        step.binding.engine,
+                        step.binding.provider,
+                    )
+                    _prefetch_grid_operation(step)
 
         logger.info("Successfully populated offline cache!")
         return True
 
-    except Exception as e:
-        logger.error(f"Prefetch failed: {e}")
+    except Exception as exc:
+        logger.error(f"Prefetch failed: {exc}")
         return False
