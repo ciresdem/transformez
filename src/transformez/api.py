@@ -470,13 +470,8 @@ def prefetch_region(
 
     Targeted prefetching uses the reference parser, resolver, and planner to
     determine the same execution path that a real transformation would use,
-    then asks :class:`GridFetcher` to acquire the resources required by each
+    then asks `GridFetcher` to acquire the resources required by each
     planned grid operation.
-
-    Full prefetching derives its inventory from ``OPERATION_BINDINGS`` rather
-    than the legacy ``Datums`` registry. This keeps prefetch behavior aligned
-    with the references and providers that the current transformation engine
-    can actually execute.
 
     Args:
         region: Bounds as [W, E, S, N], a ``loc:`` string, or a Region object.

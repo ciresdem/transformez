@@ -56,3 +56,8 @@ def test_htdp_frame_bindings():
 def test_binding_ids():
     for key, binding in OPERATION_BINDINGS.items():
         assert key == binding.reference_id
+
+
+def test_binding_dui():
+    for key, _binding in CUSTOM_VERTICAL_REFERENCES.items():
+        assert OPERATION_BINDINGS.get(key) is not None
