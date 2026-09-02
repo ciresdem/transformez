@@ -635,17 +635,14 @@ def prefetch_region(
                     binding.provider,
                 )
 
-                # Full prefetch operates from bindings directly. Build a tiny
-                # stand-in carrying the same fields used by the helper.
                 class _ReferenceView:
                     model = binding.default_model
 
                 class _StepView:
-                    pass
+                    binding = binding
+                    reference = _ReferenceView()
 
                 step = _StepView()
-                step.binding = binding
-                step.reference = _ReferenceView()
 
                 try:
                     _prefetch_grid_operation(step)  # type: ignore[arg-type]
@@ -682,22 +679,22 @@ def prefetch_region(
                     "need to be downloaded."
                 )
 
-            for step in plan.steps:
-                if isinstance(step, FrameOperation):
+            for plan_step in plan.steps:
+                if isinstance(plan_step, FrameOperation):
                     logger.info(
                         " -> HTDP frame operation ID %s -> ID %s "
                         "(no gridded resource to prefetch)",
-                        step.source_id,
-                        step.target_id,
+                        plan_step.source_id,
+                        plan_step.target_id,
                     )
                     continue
 
                 if isinstance(step, GridOperation):
                     logger.info(
                         " -> %s [%s / %s]",
-                        step.binding.reference_id,
-                        step.binding.engine,
-                        step.binding.provider,
+                        plan_step.binding.reference_id,
+                        plan_step.binding.engine,
+                        plan_step.binding.provider,
                     )
                     _prefetch_grid_operation(step)
 
