@@ -12,6 +12,7 @@ Transforms coordinates between reference frames (e.g. NAD83 <-> WGS84).
 :license: MIT, see LICENSE for more details.
 """
 
+import os
 import sys
 from pathlib import Path
 import subprocess
@@ -21,35 +22,65 @@ import logging
 import urllib.request
 import zipfile
 import numpy as np
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional, Any, Literal
 
 from .definitions import Datums  # Required for ID lookups
 
 logger = logging.getLogger(__name__)
 
 
-def resolve_htdp_path(version: str = "3.5.0") -> Optional[str]:
-    """Find the HTDP executable, prioritizing the local cache over system PATH.
+InstallScope = Literal["user", "project"]
+DEFAULT_HTDP_VERSION = "3.6.0"
 
-    Args:
-        version: HTDP version string (e.g., '3.5.0').
 
-    Returns:
-        Path to HTDP binary, or None if not found.
-    """
+class HTDPInstallError(RuntimeError):
+    pass
 
-    clean_version = version.replace("v", "")
-    ae = ".exe" if sys.platform == "win32" else ""
 
-    # Check local transformez_cache/bin/
-    cache_bin = Path.cwd() / "transformez_cache" / "bin" / f"htdp_{clean_version}{ae}"
-    if cache_bin.exists():
-        return str(cache_bin)
+def htdp_install_dir(scope: InstallScope = "user") -> Path:
+    if scope == "project":
+        return project_htdp_dir()
 
-    if shutil.which(f"htdp{ae}"):
-        return f"htdp{ae}"
+    return user_htdp_dir()
 
-    return None
+
+def project_htdp_dir() -> Path:
+    return Path.cwd() / "transformez_cache" / "bin"
+
+
+def user_htdp_dir() -> Path:
+    if sys.platform == "win32":
+        root = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+        return root / "transformez" / "bin"
+
+    return Path.home() / ".local" / "share" / "transformez" / "bin"
+
+
+def resolve_htdp_path(version: str = "3.6.0") -> Path | None:
+    clean_version = version.removeprefix("v.")
+    suffix = ".exe" if sys.platform == "win32" else ""
+
+    candidates = [
+        project_htdp_dir() / f"htdp_{clean_version}{suffix}",
+        user_htdp_dir() / f"htdp_{clean_version}{suffix}",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    system = shutil.which(f"htdp{suffix}")
+    return Path(system) if system else None
+
+
+def _htdp_release_tag(version: str) -> str:
+    clean_version = version.removeprefix("v.").removeprefix("v")
+
+    special_tags = {
+        "3.6.0": "v.3.6.0",
+    }
+
+    return special_tags.get(clean_version, f"v{clean_version}")
 
 
 class HTDP:
@@ -58,7 +89,7 @@ class HTDP:
     def __init__(
         self,
         htdp_bin: Optional[str] = None,
-        version: str = "3.5.0",
+        version: str = DEFAULT_HTDP_VERSION,
         verbose: bool = True,
     ):
         self.version = version
@@ -67,7 +98,7 @@ class HTDP:
         self.has_htdp: bool = self.htdp_bin is not None
 
         if not self.has_htdp:
-            logger.error(
+            logger.debug(
                 f"HTDP {self.version} is not installed or not in PATH. "
                 f"Run 'transformez htdp install --version {self.version}'"
             )
@@ -117,8 +148,10 @@ class HTDP:
         """
 
         if not self.has_htdp:
-            logger.warning("HTDP missing. Returning zero shift.")
-            return np.zeros((ny, nx))
+            raise RuntimeError(
+                "HTDP is required for this transformation. "
+                "Run 'transformez htdp install'."
+            )
 
         # Create a coarse (max 50x50) grid for htpd calculations.
         coarse_nx = min(nx, 50)
@@ -134,8 +167,6 @@ class HTDP:
                 if epsg_out is None:
                     raise ValueError("frame_id_out or epsg_out is required.")
                 frame_id_out = self._legacy_htdp_id_from_epsg(epsg_out)
-                # id_in = get_id(epsg_in)
-                # id_out = get_id(epsg_out)
         except ValueError as e:
             logger.error(e)
             return np.zeros((ny, nx))
@@ -192,8 +223,6 @@ class HTDP:
                 return final_grid
 
             return coarse_grid
-            # grid = self._read_grid(out_fn, (ny, nx))
-            # return grid
 
     def _read_grid(self, filename: Path, shape: Tuple[int, int]) -> np.ndarray:
         """Parse HTDP output, mapping PNT_x_y tags to grid indices.
@@ -206,10 +235,18 @@ class HTDP:
             2D numpy array of height values.
         """
 
-        grid = np.zeros(shape)
+        # grid = np.zeros(shape)
+        parsed = 0
+        outside = 0
+        grid = np.full(shape, np.nan, dtype=np.float32)
         with filename.open("r") as f:
             for line in f:
                 if "PNT_" not in line:
+                    continue
+
+                if "outside of the modeled region" in line:
+                    logger.debug("HTDP point outside modeled region: %s", line.rstrip())
+                    outside += 1
                     continue
 
                 try:
@@ -227,10 +264,15 @@ class HTDP:
 
                     if 0 <= y < shape[0] and 0 <= x < shape[1]:
                         grid[y, x] = height
+                        parsed += 1
 
                 except (ValueError, IndexError, StopIteration):
                     continue
-
+        if parsed == 0:
+            raise RuntimeError(
+                f"HTDP produced no transformed points; "
+                f"{outside} points were outside the modeled region."
+            )
         return grid
 
     def _write_control(
@@ -282,6 +324,7 @@ class HTDP:
             f"0\n"
             f"0\n"
         )
+
         with control_fn.open("w") as f:
             f.write(content)
 
@@ -317,122 +360,66 @@ class HTDP:
             return False
 
 
-def download_htdp(target_dir: Optional[str | Path] = None) -> None:
-    """Download HTDP from NOAA NGS.
+def install_htdp_binary(
+    version: str = DEFAULT_HTDP_VERSION,
+    scope: InstallScope = "user",
+) -> Path:
+    clean_version = version.removeprefix("v.").removeprefix("v")
+    tag = _htdp_release_tag(clean_version)
 
-    On Windows, downloads the pre-compiled executable.
-    On Linux/Mac, downloads the source and provides compilation instructions.
-
-    Args:
-        target_dir: Directory to download into. Defaults to cwd.
-    """
-
-    target_dir = Path(target_dir) if target_dir is not None else Path.cwd()
-
+    target_dir = htdp_install_dir(scope)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    if sys.platform == "win32":
-        # Windows: Download pre-compiled EXE
-        url = "https://geodesy.noaa.gov/TOOLS/Htdp/htdp.exe"
-        out_path = target_dir / "htdp.exe"
-        logger.info("Downloading HTDP executable for Windows from NOAA...")
-        try:
-            urllib.request.urlretrieve(url, out_path)
-            logger.info(f"Success! Downloaded to: {out_path}")
-            logger.info(
-                "Please ensure this directory is in your system PATH, or move the file to a PATH directory (e.g., C:\\Windows\\System32)."
-            )
-        except Exception as e:
-            logger.error(f"Failed to download HTDP: {e}")
+    suffix = ".exe" if sys.platform == "win32" else ""
+    target_path = target_dir / f"htdp_{clean_version}{suffix}"
 
-    else:
-        # Linux/Mac: Download Fortran Source
-        url = "https://geodesy.noaa.gov/TOOLS/Htdp/HTDP-download.zip"
-        zip_path = target_dir / "HTDP-download.zip"
-        src_dir = target_dir / "htdp_source"
+    with tempfile.TemporaryDirectory(prefix="transformez-htdp-") as tmpdir:
+        build_dir = Path(tmpdir)
+        zip_path = build_dir / "htdp.zip"
+        extract_dir = build_dir / "source"
 
-        logger.info("Downloading HTDP source code for Unix from NOAA...")
-        try:
-            urllib.request.urlretrieve(url, zip_path)
+        url = f"https://github.com/noaa-ngs/HTDP/archive/refs/tags/{tag}.zip"
 
-            with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                zip_ref.extractall(src_dir)
-
-            zip_path.unlink()
-
-            logger.info(f"Success! Source code extracted to: {src_dir}")
-            logger.info(
-                "HTDP requires compilation on Linux/macOS. Run the following commands:"
-            )
-            print("\n" + "=" * 50)
-            print(f"cd {src_dir}")
-            print("gfortran -o htdp htdp.f")
-            print("sudo mv htdp /usr/local/bin/")
-            print("=" * 50 + "\n")
-
-        except Exception as e:
-            logger.error(f"Failed to download or extract HTDP source: {e}")
-
-
-def install_htdp_binary(version: str = "3.5.0") -> None:
-    """Download and automatically compile a specific HTDP version from GitHub.
-
-    Args:
-        version: HTDP version string (e.g., '3.5.0').
-    """
-
-    cache_dir = Path.cwd() / "transformez_cache" / "bin"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    # Format the GitHub Tag (e.g., "v3.5.0")
-    v_tag = f"v{version}" if not version.startswith("v") else version
-    clean_version = v_tag.replace("v", "")
-
-    logger.info(f"Downloading HTDP reposity ({v_tag})...")
-    url = f"https://github.com/noaa-ngs/HTDP/archive/refs/tags/{v_tag}.zip"
-    zip_path = cache_dir / f"htdp_{clean_version}.zip"
-
-    try:
+        logger.info("Downloading HTDP %s from %s", clean_version, url)
         urllib.request.urlretrieve(url, zip_path)
 
+        with zipfile.ZipFile(zip_path, "r") as archive:
+            roots = {
+                Path(name).parts[0] for name in archive.namelist() if Path(name).parts
+            }
+
+            if len(roots) != 1:
+                raise HTDPInstallError(
+                    f"Unexpected HTDP archive layout: {sorted(roots)}"
+                )
+
+            source_root = next(iter(roots))
+            archive.extractall(extract_dir)
+
+        source_dir = extract_dir / source_root
+
         if sys.platform == "win32":
-            with zipfile.ZipFile(zip_path, "r") as z:
-                exe_name = next(name for name in z.namelist() if name.endswith(".exe"))
-                extracted_path = z.extract(exe_name, cache_dir)
-                exe_path = cache_dir / f"htdp_{clean_version}.exe"
+            exe = next(source_dir.rglob("*.exe"), None)
+            if exe is None:
+                raise HTDPInstallError(
+                    f"HTDP {clean_version} archive contains no executable."
+                )
+            shutil.copy2(exe, target_path)
 
-                if exe_path.exists():
-                    exe_path.unlink()
-                shutil.move(extracted_path, exe_path)
         else:
-            extract_dir = cache_dir / f"htdp_src_{clean_version}"
-            with zipfile.ZipFile(zip_path, "r") as z:
-                z.extractall(extract_dir)
+            if shutil.which("make") is None:
+                raise HTDPInstallError("'make' is required to build HTDP.")
+            if shutil.which("gfortran") is None:
+                raise HTDPInstallError("'gfortran' is required to build HTDP.")
 
-            # GitHub extracts to a folder named Repository-Tag (e.g., HTDP-3.5.0)
-            source_folder = extract_dir / f"HTDP-{clean_version}"
-            fortran_file = source_folder / "htdp.f"
-            out_bin = cache_dir / f"htdp_{clean_version}"
-
-            logger.info(f"Compiling HTDP {clean_version} with gfortran...")
             subprocess.run(
-                ["gfortran", "-o", out_bin, fortran_file],
+                ["make", "all", "FC=gfortran"],
+                cwd=source_dir,
                 check=True,
                 capture_output=True,
             )
-            logger.info(f"HTDP compiled successfully to: {out_bin}")
 
-            # Clean up the raw source files
-            shutil.rmtree(extract_dir)
+            shutil.copy2(source_dir / "htdp", target_path)
+            target_path.chmod(target_path.stat().st_mode | 0o111)
 
-        zip_path.unlink()
-
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Compilation failed: {e.stderr.decode() if e.stderr else e}")
-    except FileNotFoundError:
-        logger.error(
-            "'gfortran' not found! Install it (e.g., 'sudo apt install gfortran' "
-            "or 'brew install gcc')."
-        )
-    except Exception as e:
-        logger.error(f"Failed to install HTDP {clean_version}: {e}")
+    return target_path

@@ -378,9 +378,9 @@ class GridFetcher:
                             region=self.region,
                             nx=self.nx,
                             ny=self.ny,
-                            frame_id_in=10,
-                            frame_id_out=1,
-                            epoch_in=self.epoch_in,
+                            frame_id_in="10",
+                            frame_id_out="1",
+                            epoch_in=str(self.epoch_in),
                             epoch_out="2010.0",
                         )
                         fes_nad83 = global_shift + htdp_wgs_to_nad
@@ -396,9 +396,9 @@ class GridFetcher:
                         region=self.region,
                         nx=self.nx,
                         ny=self.ny,
-                        frame_id_in=10,
-                        frame_id_out=1,
-                        epoch_in=self.epoch_in,
+                        frame_id_in="10",
+                        frame_id_out="1",
+                        epoch_in=str(self.epoch_in),
                         epoch_out="2010.0",
                     )
                     fes_nad83 = global_shift + htdp_wgs_to_nad

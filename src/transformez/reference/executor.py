@@ -65,6 +65,7 @@ class ExecutionResult:
 
     shift: np.ndarray
     plan: TransformationPlan
+    trace: list[str]
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -106,8 +107,10 @@ class TransformationExecutor:
             dtype=np.float32,
         )
 
+        trace = []
+
         for step in plan.steps:
-            component = self.execute_step(step)
+            component, desc = self.execute_step(step)
 
             if component.shape != shift.shape:
                 raise ExecutionError(
@@ -116,10 +119,17 @@ class TransformationExecutor:
                 )
 
             shift += component.astype(np.float32, copy=False)
+            if isinstance(step, GridOperation):
+                op_sign = "+" if step.direction == "to_native" else "-"
+            else:
+                op_sign = "+"
+
+            trace.append(f"  {op_sign} [{desc}]")
 
         return ExecutionResult(
             shift=shift,
             plan=plan,
+            trace=trace,
         )
 
     def execute_step(self, operation: PlanOperation) -> np.ndarray:
@@ -144,23 +154,23 @@ class TransformationExecutor:
         engine = operation.binding.engine
 
         if engine == "vdatum_grid":
-            shift = self._execute_vdatum_grid(operation)
+            shift, desc = self._execute_vdatum_grid(operation)
 
         elif engine == "geoid_grid":
-            shift = self._execute_geoid_grid(operation)
+            shift, desc = self._execute_geoid_grid(operation)
 
         elif engine == "global_model":
-            shift = self._execute_global_model(operation)
+            shift, desc = self._execute_global_model(operation)
 
         elif engine == "proj":
-            shift = self._execute_proj_grid(operation)
+            shift, desc = self._execute_proj_grid(operation)
 
         else:
             raise UnsupportedOperationError(
                 f"Grid engine {engine!r} is not supported by the executor."
             )
 
-        return self._apply_direction(shift, operation.direction)
+        return self._apply_direction(shift, operation.direction), desc
 
     def _execute_vdatum_grid(
         self,
@@ -176,7 +186,7 @@ class TransformationExecutor:
                 "does not define provider_datum."
             )
 
-        shift, _source = self.fetcher.fetch_vdatum_chain(
+        shift, source_desc = self.fetcher.fetch_vdatum_chain(
             datum_name,
             operation.reference.model,
         )
@@ -187,7 +197,7 @@ class TransformationExecutor:
                 f"{operation.reference.reference.id!r}."
             )
 
-        return shift
+        return shift, f"VDatum({datum_name}) -> {source_desc}"
 
     def _execute_global_model(
         self,
@@ -205,12 +215,12 @@ class TransformationExecutor:
 
         model = operation.binding.provider
 
-        shift, _source = self.fetcher.fetch_global_chain(
+        shift, source_desc = self.fetcher.fetch_global_chain(
             datum_name,
             model=model,
         )
 
-        return shift
+        return shift, f"GlobalModel({model}:{datum_name}) -> {source_desc}"
 
     def _execute_geoid_grid(
         self,
@@ -226,9 +236,9 @@ class TransformationExecutor:
                 "does not define a geoid model."
             )
 
-        shift, _source = self.fetcher.fetch_geoid(model)
+        shift, source_desc = self.fetcher.fetch_geoid(model)
 
-        return shift
+        return shift, f"Geoid({source_desc})"
 
     def _execute_proj_grid(
         self,
@@ -249,9 +259,9 @@ class TransformationExecutor:
                 "does not define an executable model."
             )
 
-        shift, _source = self.fetcher.fetch_geoid(model)
+        shift, source_desc = self.fetcher.fetch_geoid(model)
 
-        return shift
+        return shift, f"Geoid({source_desc})"
 
     def _execute_frame_operation(
         self,
@@ -264,7 +274,7 @@ class TransformationExecutor:
                 "HTDP FrameOperation requires concrete input and output epochs."
             )
 
-        return self.htdp.run_grid(
+        shift = self.htdp.run_grid(
             region=self.context.region,
             nx=self.context.nx,
             ny=self.context.ny,
@@ -273,6 +283,9 @@ class TransformationExecutor:
             epoch_in=str(operation.epoch_in),
             epoch_out=str(operation.epoch_out),
         )
+
+        desc = f"HTDP(ID:{operation.source_id}@{operation.epoch_in} -> ID:{operation.target_id}@{operation.epoch_out})"
+        return shift, desc
 
     @staticmethod
     def _apply_direction(

@@ -38,7 +38,7 @@ from transformez import __version__
 logger = logging.getLogger(__name__)
 
 
-TEST_REFERENCE = False
+TEST_REFERENCE = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,8 +225,10 @@ def _generation_key(
         source.vertical.id if source.vertical else "",
         target.horizontal.to_wkt() if target.horizontal else "",
         target.vertical.id if target.vertical else "",
-        epoch_in,
-        epoch_out,
+        # format(float(epoch_in), ".10g"),
+        # format(float(epoch_out), ".10g"),
+        str(epoch_in),
+        str(epoch_out),
         str(increment),
         str(decay_pixels),
         str(decay_distance_m),
@@ -393,6 +395,32 @@ def build_shift_grid(
         result = executor.execute(plan)
         shift_array = result.shift
         uncertainty_array = np.zeros(shift_array.shape)
+
+        result = executor.execute(plan)
+        # Print the beautiful new execution trace!
+        # if verbose:
+        logger.info("-" * 60)
+        logger.info(f"Transformation Execution Trace: {datum_in} -> {datum_out}")
+
+        if not result.trace:
+            logger.info("  ✓ Identity Transformation (No Shift Applied)")
+        else:
+            for step_desc in result.trace:
+                logger.info(step_desc)
+
+        # Calculate statistics
+        if np.any(shift_array) and not np.isnan(shift_array).all():
+            mean_shift = np.nanmean(shift_array)
+            min_shift = np.nanmin(shift_array)
+            max_shift = np.nanmax(shift_array)
+            logger.info(
+                f"  => Total Shift Applied (Mean: {mean_shift:.3f}m | "
+                f"Min: {min_shift:.3f}m | Max: {max_shift:.3f}m)"
+            )
+        else:
+            logger.info("  => Total Shift Applied (Zero / Identity)")
+
+        logger.info("-" * 60)
 
     provenance = {
         "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
