@@ -24,8 +24,13 @@ import numpy as np
 import fetchez.api
 import fetchez.utils
 
-from ..grid_engine import CoastalContext, GridEngine, GridGen, GridCorruptionError
-from ..htdp import HTDP
+from transformez.grid_engine import (
+    CoastalContext,
+    GridEngine,
+    GridGen,
+    GridCorruptionError,
+)
+from transformez.htdp import HTDP
 from .bindings import OPERATION_BINDINGS
 
 logger = logging.getLogger(__name__)

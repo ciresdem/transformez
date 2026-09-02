@@ -203,7 +203,7 @@ OPERATION_BINDINGS = {
         default_model="g2018",
     ),
     "epsg:3855": OperationBinding(
-        reference_id="epsg:3755",
+        reference_id="epsg:3855",
         engine="proj",
         provider="cdn",
         provider_datum=None,

@@ -5,10 +5,7 @@
 transformez.reference.executor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Execute a resolved TransformationPlan.
-
-The planner decides which operations are required and in what order;
-the executor performs those operations and accumulates their vertical shifts.
+Execute a resolved TransformationPlan and accumulate the execution trace.
 """
 
 from __future__ import annotations
@@ -65,7 +62,7 @@ class ExecutionResult:
 
     shift: np.ndarray
     plan: TransformationPlan
-    trace: list[str]
+    trace: list[str]  # Stores the human-readable trace of executed steps
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -119,12 +116,14 @@ class TransformationExecutor:
                 )
 
             shift += component.astype(np.float32, copy=False)
+
+            # Format the direction cleanly for the log
             if isinstance(step, GridOperation):
                 op_sign = "+" if step.direction == "to_native" else "-"
             else:
                 op_sign = "+"
 
-            trace.append(f"  {op_sign} [{desc}]")
+            trace.append(f"{op_sign} [{desc}]")
 
         return ExecutionResult(
             shift=shift,
@@ -132,8 +131,8 @@ class TransformationExecutor:
             trace=trace,
         )
 
-    def execute_step(self, operation: PlanOperation) -> np.ndarray:
-        """Execute a single planned operation."""
+    def execute_step(self, operation: PlanOperation) -> tuple[np.ndarray, str]:
+        """Execute a single planned operation, returning the array and its description."""
 
         if isinstance(operation, GridOperation):
             return self._execute_grid_operation(operation)
@@ -148,23 +147,19 @@ class TransformationExecutor:
     def _execute_grid_operation(
         self,
         operation: GridOperation,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, str]:
         """Execute a vertical reference <-> native-frame operation."""
 
         engine = operation.binding.engine
 
         if engine == "vdatum_grid":
             shift, desc = self._execute_vdatum_grid(operation)
-
         elif engine == "geoid_grid":
             shift, desc = self._execute_geoid_grid(operation)
-
         elif engine == "global_model":
             shift, desc = self._execute_global_model(operation)
-
         elif engine == "proj":
             shift, desc = self._execute_proj_grid(operation)
-
         else:
             raise UnsupportedOperationError(
                 f"Grid engine {engine!r} is not supported by the executor."
@@ -175,7 +170,7 @@ class TransformationExecutor:
     def _execute_vdatum_grid(
         self,
         operation: GridOperation,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, str]:
         """Generate the native-frame shift for a VDatum reference."""
 
         datum_name = operation.binding.provider_datum
@@ -202,7 +197,7 @@ class TransformationExecutor:
     def _execute_global_model(
         self,
         operation: GridOperation,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, str]:
         """Generate a global-model <-> ellipsoid shift."""
 
         datum_name = operation.binding.provider_datum
@@ -225,7 +220,7 @@ class TransformationExecutor:
     def _execute_geoid_grid(
         self,
         operation: GridOperation,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, str]:
         """Generate a geoid-backed reference <-> ellipsoid shift."""
 
         model = operation.reference.model or operation.binding.default_model
@@ -243,13 +238,8 @@ class TransformationExecutor:
     def _execute_proj_grid(
         self,
         operation: GridOperation,
-    ) -> np.ndarray:
-        """Temporary compatibility path for PROJ/CDN-backed vertical grids.
-
-        This currently treats the resolved model as the required geoid grid.
-        This method will likely become more specific once the legacy CDN logic
-        is fully migrated out of VerticalTransform.
-        """
+    ) -> tuple[np.ndarray, str]:
+        """Temporary compatibility path for PROJ/CDN-backed vertical grids."""
 
         model = operation.reference.model or operation.binding.default_model
 
@@ -266,7 +256,7 @@ class TransformationExecutor:
     def _execute_frame_operation(
         self,
         operation: FrameOperation,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, str]:
         """Execute an HTDP frame and/or epoch transformation."""
 
         if operation.epoch_in is None or operation.epoch_out is None:

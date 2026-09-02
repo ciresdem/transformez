@@ -58,6 +58,8 @@ class ShiftGrid:
 
     generation_key: str
 
+    trace: List[str]
+
     uncertainty: np.ndarray | None = None
 
     cache_dir: Path | None = None
@@ -147,6 +149,7 @@ class ShiftGrid:
             epoch_out=self.epoch_out,
             provenance=provenance,
             generation_key=self.generation_key,
+            trace=self.trace,
             cache_dir=self.cache_dir,
         )
 
@@ -289,6 +292,9 @@ def build_shift_grid(
     """
 
     from .transform import VerticalTransform
+    from .reference.executor import ExecutionContext, TransformationExecutor
+    from .reference.resolver import resolve_reference
+    from .reference.planner import TransformationPlanner
 
     src_ref = parse_reference(datum_in)
     dst_ref = parse_reference(datum_out)
@@ -362,9 +368,6 @@ def build_shift_grid(
             ) from exc
     else:
         # --- Reference Module ---
-        from .reference.executor import ExecutionContext, TransformationExecutor
-        from .reference.resolver import resolve_reference
-        from .reference.planner import TransformationPlanner
 
         resolved_src = resolve_reference(
             src_ref,
@@ -381,46 +384,54 @@ def build_shift_grid(
             region=wgs84_region,
             nx=nx,
             ny=ny,
-            cache_dir=Path(cache_dir) if cache_dir else Path("transformez_cache"),
+            cache_dir=Path(cache_dir)
+            if cache_dir
+            else Path.cwd() / "transformez_cache",
             decay_pixels=decay_pixels,
             decay_distance_m=decay_distance_m,
-            buffer_distance_m=buffer_distance_m or 0.0,
+            buffer_distance_m=buffer_distance_m,
             max_vdatum_extension_m=max_vdatum_extension_m,
             extrapolate_inland=extrapolate_inland,
             use_stations=use_stations,
             verbose=verbose,
         )
 
-        executor = TransformationExecutor(context)
-        result = executor.execute(plan)
-        shift_array = result.shift
-        uncertainty_array = np.zeros(shift_array.shape)
+        try:
+            executor = TransformationExecutor(context=context)
+            result = executor.execute(plan)
+            shift_array = result.shift
+            trace = result.trace
+            uncertainty_array = None
 
-        result = executor.execute(plan)
-        # Print the beautiful new execution trace!
-        # if verbose:
-        logger.info("-" * 60)
-        logger.info(f"Transformation Execution Trace: {datum_in} -> {datum_out}")
+            if verbose:
+                logger.info("-" * 60)
+                logger.info(
+                    f"Transformation Execution Trace: {datum_in} -> {datum_out}"
+                )
 
-        if not result.trace:
-            logger.info("  ✓ Identity Transformation (No Shift Applied)")
-        else:
-            for step_desc in result.trace:
-                logger.info(step_desc)
+                if not trace:
+                    logger.info("  ✓ Identity Transformation (No Shift Applied)")
+                else:
+                    for step_desc in trace:
+                        logger.info(f"  {step_desc}")
 
-        # Calculate statistics
-        if np.any(shift_array) and not np.isnan(shift_array).all():
-            mean_shift = np.nanmean(shift_array)
-            min_shift = np.nanmin(shift_array)
-            max_shift = np.nanmax(shift_array)
-            logger.info(
-                f"  => Total Shift Applied (Mean: {mean_shift:.3f}m | "
-                f"Min: {min_shift:.3f}m | Max: {max_shift:.3f}m)"
-            )
-        else:
-            logger.info("  => Total Shift Applied (Zero / Identity)")
+                if np.any(shift_array) and not np.isnan(shift_array).all():
+                    mean_shift = np.nanmean(shift_array)
+                    min_shift = np.nanmin(shift_array)
+                    max_shift = np.nanmax(shift_array)
+                    logger.info(
+                        f"  => Total Shift Applied (Mean: {mean_shift:.3f}m | "
+                        f"Min: {min_shift:.3f}m | Max: {max_shift:.3f}m)"
+                    )
+                else:
+                    logger.info("  => Total Shift Applied (Zero / Identity)")
 
-        logger.info("-" * 60)
+                logger.info("-" * 60)
+
+        except Exception as exc:
+            raise RuntimeError(
+                "Transformation failed to generate a shift grid."
+            ) from exc
 
     provenance = {
         "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
@@ -479,6 +490,7 @@ def build_shift_grid(
         epoch_out=effective_epoch_out,
         provenance=provenance,
         generation_key=generation_key,
+        trace=trace,
         uncertainty=uncertainty_array,
-        cache_dir=Path(cache_dir) if cache_dir else None,
+        cache_dir=context.cache_dir,
     )
