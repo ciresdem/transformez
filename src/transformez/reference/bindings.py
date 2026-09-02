@@ -141,6 +141,14 @@ CUSTOM_VERTICAL_REFERENCES = {
         uit_name="metre",
         unit_to_metre=1.0,
     ),
+    "epsg:6643": VerticalReference(
+        id="epsg:6643",
+        name="ASVD02 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        uit_name="metre",
+        unit_to_metre=1.0,
+    ),
 }
 
 
@@ -236,13 +244,21 @@ OPERATION_BINDINGS = {
         native_frame="EPSG:6319",
         default_model="g2018",
     ),
-    "epgs:6642": OperationBinding(
+    "epsg:6642": OperationBinding(
         reference_id="epsg:6641",
         engine="proj",
         provider="cdn",
         provider_datum=None,
         native_frame="epsg:6310",
         default_model="g2018",
+    ),
+    "epsg:6643": OperationBinding(
+        reference_id="epsg:6643",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="epsg:6321",
+        default_model="g2012bs0",
     ),
 }
 
