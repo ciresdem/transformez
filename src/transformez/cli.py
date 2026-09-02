@@ -319,14 +319,12 @@ def transform_plan(
     )
 
     try:
-        # Parse and Resolve
         src_parsed = parse_reference(input_datum)
         dst_parsed = parse_reference(output_datum)
 
         src_resolved = resolve_reference(src_parsed, default_epoch=float(epoch_in))
         dst_resolved = resolve_reference(dst_parsed, default_epoch=float(epoch_out))
 
-        # Build the Plan
         plan = TransformationPlanner.build_plan(src_resolved, dst_resolved)
 
     except Exception as e:
@@ -396,7 +394,6 @@ def transform_list_reference() -> None:
     )
     from transformez.reference.types import VerticalKind
 
-    # Group custom references by their defined 'kind'
     tidal_surfaces = []
     global_models = []
 
@@ -406,7 +403,6 @@ def transform_list_reference() -> None:
         elif ref_obj.kind == VerticalKind.MODEL_SURFACE:
             global_models.append((ref_id, ref_obj.name))
 
-    # Extract geoid-backed EPSG codes
     geoid_epsgs = []
     for ref_id, binding in OPERATION_BINDINGS.items():
         if ref_id.startswith("epsg:") and binding.engine == "proj":
@@ -436,8 +432,6 @@ def transform_list_reference() -> None:
         geoid_str = default_geoid.replace("geoid:", "") if default_geoid else "None"
         click.echo(f"  {epsg_code:<12} : {name:<30} (Default Geoid: {geoid_str})")
 
-    # Note: We hardcode the US geoids here because they are dynamically resolved
-    # via the PROJ CDN within the executor rather than strictly bound in the registry.
     click.secho("\n🌍 Available Geoids (via PROJ):", fg="cyan", bold=True)
     click.echo("  g2018, g2012b, geoid09")
 
