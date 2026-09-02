@@ -190,7 +190,7 @@ def generate_grid(
 def build_components(
     src_srs: str,
     dst_srs: str,
-    region: Region | str | list[float],
+    region: Region | str | list[float] | None = None,
     increment: str | float = "3s",
     cache_dir: str | Path | None = None,
     **vertical_options: Any,

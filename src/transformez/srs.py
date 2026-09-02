@@ -17,11 +17,12 @@ from .api import build_components
 class SRSParser:
     """Deprecated compatibility wrapper."""
 
-    def __init__(self, src_srs, dst_srs, vert_grid=None, **kwargs):
+    def __init__(self, src_srs, dst_srs, region=None, vert_grid=None, **kwargs):
         self.vert_grid = vert_grid
         self._components = build_components(
             src_srs,
             dst_srs,
+            region=region,
             **kwargs,
         )
 

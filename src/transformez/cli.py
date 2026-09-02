@@ -23,7 +23,7 @@ from transformez import api
 
 TRANSFORMEZ_COMMANDS = {
     "Execution": ["build", "shift"],
-    "Discovery": ["list", "prefetch"],
+    "Discovery": ["list", "list-reference", "prefetch", "plan"],
     "External": ["htdp", "vdatum"],
 }
 
@@ -286,7 +286,172 @@ def transform_raster(
         sys.exit(1)
 
 
+@transformez_cli.command("plan", cls=FetchezMainCommand)
+@click.option(
+    "-I", "--input-datum", required=True, help="Source Datum (e.g., 'mllw', '5703')."
+)
+@click.option(
+    "-O",
+    "--output-datum",
+    required=True,
+    help="Target Datum (e.g., '4979', '5703:g2012b').",
+)
+@click.option(
+    "--epoch-in", default="2010.0", help="Source coordinate epoch (default: 2010.0)."
+)
+@click.option(
+    "--epoch-out", default="2010.0", help="Target coordinate epoch (default: 2010.0)."
+)
+def transform_plan(
+    input_datum: str,
+    output_datum: str,
+    epoch_in: str,
+    epoch_out: str,
+) -> None:
+    """Preview the geodetic transformation steps without executing them."""
+
+    from transformez.reference.parser import parse_reference
+    from transformez.reference.resolver import resolve_reference
+    from transformez.reference.planner import (
+        TransformationPlanner,
+        GridOperation,
+        FrameOperation,
+    )
+
+    try:
+        src_parsed = parse_reference(input_datum)
+        dst_parsed = parse_reference(output_datum)
+
+        src_resolved = resolve_reference(src_parsed, default_epoch=float(epoch_in))
+        dst_resolved = resolve_reference(dst_parsed, default_epoch=float(epoch_out))
+
+        plan = TransformationPlanner.build_plan(src_resolved, dst_resolved)
+
+    except Exception as e:
+        click.secho(f"Failed to build plan: {e}", fg="red")
+        sys.exit(1)
+
+    click.secho(
+        f"\n🗺️  Transformation Plan: {input_datum} ➔ {output_datum}",
+        fg="cyan",
+        bold=True,
+    )
+
+    src_name = (
+        plan.source.vertical.reference.name if plan.source.vertical else "Unknown"
+    )
+    dst_name = (
+        plan.target.vertical.reference.name if plan.target.vertical else "Unknown"
+    )
+
+    click.echo(f"  Source: {src_name} (@ {plan.source.coordinate_epoch})")
+    click.echo(f"  Target: {dst_name} (@ {plan.target.coordinate_epoch})\n")
+
+    if plan.horizontal_transform:
+        click.secho("  [Horizontal Operation]", fg="yellow")
+        click.echo("  • Reprojecting horizontal coordinates.\n")
+
+    if not plan.steps:
+        click.secho(
+            "  ✓ Identity Transformation (No vertical steps required).", fg="green"
+        )
+        return
+
+    click.secho("  [Vertical Operations]", fg="yellow")
+    for i, step in enumerate(plan.steps, start=1):
+        if isinstance(step, GridOperation):
+            # Parse Grid Operations
+            direction_str = (
+                "Extract from" if step.direction == "from_native" else "Step to"
+            )
+            engine_str = step.binding.engine.replace("_", " ").title()
+            model_str = f" via {step.reference.model}" if step.reference.model else ""
+
+            click.echo(
+                f"  {i}. Grid Shift [{engine_str}]: "
+                f"{direction_str} Native Hub ({step.native_frame.name}){model_str}"
+            )
+
+        elif isinstance(step, FrameOperation):
+            # Parse HTDP/Frame Operations
+            click.echo(
+                f"  {i}. Frame Shift [HTDP]: "
+                f"ID {step.source_id} (@ {step.epoch_in}) ➔ ID {step.target_id} (@ {step.epoch_out})"
+            )
+
+    click.echo()
+
+
 # --- LIST DATUMS, ETC. ---
+@transformez_cli.command("list-reference", cls=FetchezMainCommand)
+def transform_list_reference() -> None:
+    """List all supported vertical datums, EPSG codes, and geoids."""
+
+    from transformez.reference.bindings import (
+        CUSTOM_VERTICAL_REFERENCES,
+        OPERATION_BINDINGS,
+        HTDP_FRAME_BINDINGS,
+    )
+    from transformez.reference.types import VerticalKind
+
+    tidal_surfaces = []
+    global_models = []
+
+    for ref_id, ref_obj in CUSTOM_VERTICAL_REFERENCES.items():
+        if ref_obj.kind == VerticalKind.TIDAL_HEIGHT:
+            tidal_surfaces.append((ref_id, ref_obj.name))
+        elif ref_obj.kind == VerticalKind.MODEL_SURFACE:
+            global_models.append((ref_id, ref_obj.name))
+
+    geoid_epsgs = []
+    for ref_id, binding in OPERATION_BINDINGS.items():
+        if ref_id.startswith("epsg:") and binding.engine == "proj":
+            ref_vert_obj = CUSTOM_VERTICAL_REFERENCES.get(ref_id)
+            name = ref_vert_obj.name if ref_vert_obj else "Unknown"
+            geoid_epsgs.append(
+                (ref_id.replace("epsg:", ""), name, binding.default_model)
+            )
+
+    click.secho("\n🌊 Supported Tidal Surfaces (NOAA VDatum):", fg="cyan", bold=True)
+    for ref_id, name in sorted(tidal_surfaces):
+        click.echo(f"  {ref_id:<12} : {name:<30}")
+
+    click.secho("\n🛰️  Global Ocean Proxies (FES2014 / DTU25):", fg="cyan", bold=True)
+    for ref_id, name in sorted(global_models):
+        click.echo(f"  {ref_id:<12} : {name:<30}")
+
+    click.secho("\n🌐 Ellipsoidal / Frame Datums (HTDP Hubs):", fg="cyan", bold=True)
+    for epsg_str, htdp_binding in HTDP_FRAME_BINDINGS.items():
+        epsg_code = epsg_str.split(":")[1]
+        click.echo(
+            f"  {epsg_code:<12} : {htdp_binding.name:<30} (Epoch: {htdp_binding.reference_epoch})"
+        )
+
+    click.secho("\n🏔️  Orthometric / Geoid-Based (EPSG):", fg="cyan", bold=True)
+    for epsg_code, name, default_geoid in sorted(geoid_epsgs):
+        geoid_str = default_geoid.replace("geoid:", "") if default_geoid else "None"
+        click.echo(f"  {epsg_code:<12} : {name:<30} (Default Geoid: {geoid_str})")
+
+    click.secho("\n🌍 Available Geoids (via PROJ):", fg="cyan", bold=True)
+    click.echo("  g2018, g2012b, geoid09")
+
+    # ---> HIERARCHY DOCUMENTATION <---
+    click.secho(
+        "\n🔄 Dynamic Fallback Hierarchy (Coastal/Tidal):", fg="magenta", bold=True
+    )
+    click.echo("  1. NOAA VDatum       : High-res regional hydrodynamics (USA Base).")
+    click.echo(
+        "  2. FES2014 / Global  : Satellite altimetry proxy for offshore/international."
+    )
+    click.echo(
+        "  3. Tide Station RBF  : Live CO-OPS splines (Activated via --use-stations)."
+    )
+    click.echo(
+        "  4. Constant Offset   : Safety fallback for sparse coverage (< 3 stations)."
+    )
+    click.echo("  5. Inland Decay      : Coast-aware physical distance tidal decay.")
+
+
 @transformez_cli.command("list", cls=FetchezMainCommand)
 def transform_list() -> None:
     """List all supported vertical datums, EPSG codes, and geoids."""
