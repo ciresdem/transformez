@@ -83,6 +83,7 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    # GLOBAL
     "global:mss": VerticalReference(
         id="global:mss",
         name="Mean Sea Surface (Global Proxy)",
@@ -107,17 +108,66 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    # GRAVITATIONAL
     "epsg:5703": VerticalReference(
         id="epsg:5703",
-        name="NAVD88",
+        name="NAVD88 height",
         kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
         axis_direction=AxisDirection.UP,
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    "epsg:8228": VerticalReference(
+        id="epsg:8228",
+        name="NAVD88 height (us-feet)",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="us-feet",
+        unit_to_metre=0.3048,
+    ),
     "epsg:3855": VerticalReference(
         id="epsg:3855",
         name="EGM2008 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:5773": VerticalReference(
+        id="epsg:5773",
+        name="EGM96 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:6641": VerticalReference(
+        id="epsg:6641",
+        name="PRVD02 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:6642": VerticalReference(
+        id="epsg:6642",
+        name="VIVD09 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:6643": VerticalReference(
+        id="epsg:6643",
+        name="ASVD02 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:6647": VerticalReference(
+        id="epsg:6647",
+        name="CGVD2013 height",
         kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
         axis_direction=AxisDirection.UP,
         unit_name="metre",
@@ -135,7 +185,7 @@ OPERATION_BINDINGS = {
         engine="vdatum_grid",
         provider="vdatum",
         provider_datum="msl",
-        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        native_frame="EPSG:6319",
         default_model="geoid:g2018",
     ),
     "vdatum:mllw": OperationBinding(
@@ -143,7 +193,7 @@ OPERATION_BINDINGS = {
         engine="vdatum_grid",
         provider="vdatum",
         provider_datum="mllw",
-        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        native_frame="EPSG:6319",
         default_model="g2018",
     ),
     "vdatum:mlw": OperationBinding(
@@ -151,7 +201,7 @@ OPERATION_BINDINGS = {
         engine="vdatum_grid",
         provider="vdatum",
         provider_datum="mlw",
-        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        native_frame="EPSG:6319",
         default_model="geoid:g2018",
     ),
     "vdatum:mhhw": OperationBinding(
@@ -159,7 +209,7 @@ OPERATION_BINDINGS = {
         engine="vdatum_grid",
         provider="vdatum",
         provider_datum="mhhw",
-        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        native_frame="EPSG:6319",
         default_model="geoid:g2018",
     ),
     "vdatum:mhw": OperationBinding(
@@ -167,7 +217,7 @@ OPERATION_BINDINGS = {
         engine="vdatum_grid",
         provider="vdatum",
         provider_datum="mhw",
-        native_frame="EPSG:6319",  # NAD83(2011) Hub
+        native_frame="EPSG:6319",
         default_model="geoid:g2018",
     ),
     "global:mss": OperationBinding(
@@ -175,7 +225,7 @@ OPERATION_BINDINGS = {
         engine="global_model",
         provider="dtu25",
         provider_datum="mss",
-        native_frame="EPSG:4979",  # WGS84 Hub
+        native_frame="EPSG:4979",
         default_model=None,
     ),
     "global:lat": OperationBinding(
@@ -183,7 +233,7 @@ OPERATION_BINDINGS = {
         engine="global_model",
         provider="fes2014",
         provider_datum="lat",
-        native_frame="EPSG:4979",  # WGS84 Hub
+        native_frame="EPSG:4979",
         default_model=None,
     ),
     "global:hat": OperationBinding(
@@ -191,7 +241,7 @@ OPERATION_BINDINGS = {
         engine="global_model",
         provider="fes2014",
         provider_datum="hat",
-        native_frame="EPSG:4979",  # WGS84 Hub
+        native_frame="EPSG:4979",
         default_model=None,
     ),
     "epsg:5703": OperationBinding(
@@ -199,16 +249,64 @@ OPERATION_BINDINGS = {
         engine="proj",
         provider="cdn",
         provider_datum=None,
-        native_frame="EPSG:6319",  # NAD83 Hub
+        native_frame="EPSG:6319",
         default_model="g2018",
+    ),
+    "epsg:8228": OperationBinding(
+        reference_id="epsg:8228",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="EPSG:6319",
+        default_model="g2012b",
     ),
     "epsg:3855": OperationBinding(
         reference_id="epsg:3855",
         engine="proj",
         provider="cdn",
         provider_datum=None,
-        native_frame="EPSG:4979",  # WGS84 Hub
+        native_frame="EPSG:4979",
         default_model="egm2008",
+    ),
+    "epsg:5773": OperationBinding(
+        reference_id="epsg:5773",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="EPSG:4979",
+        default_model="egm96",
+    ),
+    "epsg:6641": OperationBinding(
+        reference_id="epsg:6641",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="EPSG:6319",
+        default_model="g2018",
+    ),
+    "epsg:6642": OperationBinding(
+        reference_id="epsg:6642",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="epsg:6310",
+        default_model="g2018",
+    ),
+    "epsg:6643": OperationBinding(
+        reference_id="epsg:6643",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="epsg:6321",
+        default_model="g2012bs0",
+    ),
+    "epsg:6647": OperationBinding(
+        reference_id="epsg:6647",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="epsg:6321",
+        default_model="CGG2013",
     ),
 }
 
