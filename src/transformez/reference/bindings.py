@@ -136,7 +136,7 @@ OPERATION_BINDINGS = {
         provider="vdatum",
         provider_datum="mllw",
         native_frame="EPSG:6319",  # NAD83(2011) Hub
-        default_model="geoid:g2018",
+        default_model="g2018",
     ),
     "vdatum:mlw": OperationBinding(
         reference_id="vdatum:mlw",
@@ -192,7 +192,7 @@ OPERATION_BINDINGS = {
         provider="cdn",
         provider_datum=None,
         native_frame="EPSG:6319",  # NAD83 Hub
-        default_model="geoid:g2018",
+        default_model="g2018",
     ),
 }
 

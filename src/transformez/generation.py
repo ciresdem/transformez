@@ -38,6 +38,9 @@ from transformez import __version__
 logger = logging.getLogger(__name__)
 
 
+TEST_REFERENCE = False
+
+
 @dataclass(frozen=True, slots=True)
 class ShiftGrid:
     array: np.ndarray
@@ -328,29 +331,68 @@ def build_shift_grid(
     if max_vdatum_extension_m is not None and max_vdatum_extension_m < 0:
         raise ValueError("max_vdatum_extension_m must be >= 0")
 
-    vt = VerticalTransform(
-        region=wgs84_region,
-        nx=nx,
-        ny=ny,
-        epsg_in=src_ref_legacy.vertical.epsg,
-        epsg_out=dst_ref_legacy.vertical.epsg,
-        geoid_in=src_ref_legacy.vertical.geoid,
-        geoid_out=dst_ref_legacy.vertical.geoid,
-        epoch_in=effective_epoch_in,
-        epoch_out=effective_epoch_out,
-        decay_pixels=decay_pixels,
-        decay_distance_m=decay_distance_m,
-        buffer_distance_m=buffer_distance_m,
-        max_vdatum_extension_m=max_vdatum_extension_m,
-        extrapolate_inland=extrapolate_inland,
-        cache_dir=cache_dir,
-        use_stations=use_stations,
-        verbose=verbose,
-    )
-    try:
-        shift_array, uncertainty_array = vt._vertical_transform()
-    except Exception as exc:
-        raise RuntimeError("Transformation failed to generate a shift grid.") from exc
+    if not TEST_REFERENCE:
+        # --- Legacy VerticalTransform ---
+        vt = VerticalTransform(
+            region=wgs84_region,
+            nx=nx,
+            ny=ny,
+            epsg_in=src_ref_legacy.vertical.epsg,
+            epsg_out=dst_ref_legacy.vertical.epsg,
+            geoid_in=src_ref_legacy.vertical.geoid,
+            geoid_out=dst_ref_legacy.vertical.geoid,
+            epoch_in=effective_epoch_in,
+            epoch_out=effective_epoch_out,
+            decay_pixels=decay_pixels,
+            decay_distance_m=decay_distance_m,
+            buffer_distance_m=buffer_distance_m,
+            max_vdatum_extension_m=max_vdatum_extension_m,
+            extrapolate_inland=extrapolate_inland,
+            cache_dir=cache_dir,
+            use_stations=use_stations,
+            verbose=verbose,
+        )
+        try:
+            shift_array, uncertainty_array = vt._vertical_transform()
+        except Exception as exc:
+            raise RuntimeError(
+                "Transformation failed to generate a shift grid."
+            ) from exc
+    else:
+        # --- Reference Module ---
+        from .reference.executor import ExecutionContext, TransformationExecutor
+        from .reference.resolver import resolve_reference
+        from .reference.planner import TransformationPlanner
+
+        resolved_src = resolve_reference(
+            src_ref,
+            default_epoch=float(effective_epoch_in),
+        )
+
+        resolved_dst = resolve_reference(
+            dst_ref,
+            default_epoch=float(effective_epoch_out),
+        )
+        plan = TransformationPlanner.build_plan(resolved_src, resolved_dst)
+
+        context = ExecutionContext(
+            region=wgs84_region,
+            nx=nx,
+            ny=ny,
+            cache_dir=Path(cache_dir) if cache_dir else Path("transformez_cache"),
+            decay_pixels=decay_pixels,
+            decay_distance_m=decay_distance_m,
+            buffer_distance_m=buffer_distance_m or 0.0,
+            max_vdatum_extension_m=max_vdatum_extension_m,
+            extrapolate_inland=extrapolate_inland,
+            use_stations=use_stations,
+            verbose=verbose,
+        )
+
+        executor = TransformationExecutor(context)
+        result = executor.execute(plan)
+        shift_array = result.shift
+        uncertainty_array = np.zeros(shift_array.shape)
 
     provenance = {
         "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
