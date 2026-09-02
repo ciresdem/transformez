@@ -406,8 +406,8 @@ def transform_list_reference() -> None:
     geoid_epsgs = []
     for ref_id, binding in OPERATION_BINDINGS.items():
         if ref_id.startswith("epsg:") and binding.engine == "proj":
-            ref_obj = CUSTOM_VERTICAL_REFERENCES.get(ref_id)
-            name = ref_obj.name if ref_obj else "Unknown"
+            ref_vert_obj = CUSTOM_VERTICAL_REFERENCES.get(ref_id)
+            name = ref_vert_obj.name if ref_vert_obj else "Unknown"
             geoid_epsgs.append(
                 (ref_id.replace("epsg:", ""), name, binding.default_model)
             )
@@ -421,10 +421,10 @@ def transform_list_reference() -> None:
         click.echo(f"  {ref_id:<12} : {name:<30}")
 
     click.secho("\n🌐 Ellipsoidal / Frame Datums (HTDP Hubs):", fg="cyan", bold=True)
-    for epsg_str, binding in HTDP_FRAME_BINDINGS.items():
+    for epsg_str, htdp_binding in HTDP_FRAME_BINDINGS.items():
         epsg_code = epsg_str.split(":")[1]
         click.echo(
-            f"  {epsg_code:<12} : {binding.name:<30} (Epoch: {binding.reference_epoch})"
+            f"  {epsg_code:<12} : {htdp_binding.name:<30} (Epoch: {htdp_binding.reference_epoch})"
         )
 
     click.secho("\n🏔️  Orthometric / Geoid-Based (EPSG):", fg="cyan", bold=True)
