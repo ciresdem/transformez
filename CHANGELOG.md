@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added compatibility handling for legacy Transformez/CUDEM geoid syntax such as EPSG:4326+5703+geoid:g2012b.
 - Added a new typed reference parsing and binding layer for horizontal and vertical reference systems, including namespaced custom references and legacy aliases.
 - Added build_shift_grid() as the canonical vertical grid generation interface and introduced the ShiftGrid object for working with generated transformations.
+- Added planner.py as the canonical transformation planner. This maps out the transformation plan based on the resolved references.
+- Added resolver.py which resolves a parsed reference to obtain the full context of the transformation.
+- Added fetcher.py, ported from transform.py, to allow the use of existing fethcing/compositing for use in transformations.
+- Added CLI commands the help track the progress of porting references from definitions.
 
 ### Changed
 - Updated CLI options to use new dist2coast km decay and blend options
@@ -39,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor dist2coast usage to fix a bug that would burn the dist2coast edges onto the raster result. This was due to performing an edt distance transform from the low-res dist2coast raster, treating it as a mask instead of a distance field. Update allows setting the distance by km instead of number of pixels and smooths the 'zero' field to get proper transitions.
 - Since dist2coast sets it's nodata value to zero, we were incorrectly masking the dist2coast raster by ignoring the zero values (coastline), we now have an option to ignore the nodata value in grid_engine.
 - Improved validation of datum/reference inputs by resolving standard EPSG identifiers through PROJ before adapting them to the legacy transformation engine.
+- Improved support of legacy reference sytax in parser.py by parsing non-standard epsg+ syntax.
 
 ### Deprecated
 - The legacy SRSParser interface remains available for compatibility but now delegates to the new API.
