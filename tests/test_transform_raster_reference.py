@@ -80,6 +80,7 @@ def _mock_generated_grid():
         epoch_out="2010.0",
         provenance={"TEST": "true"},
         generation_key="test",
+        trace=["+ [Synthetic reference execution]"],
     )
 
 
@@ -90,7 +91,7 @@ def test_transform_raster_aligns_shift_to_projected_dem(
     src_path = tmp_path / "src.tif"
     dst_path = tmp_path / "dst.tif"
 
-    _, native_transform = _write_dem(src_path)
+    _write_dem(src_path)
 
     generated = _mock_generated_grid()
 

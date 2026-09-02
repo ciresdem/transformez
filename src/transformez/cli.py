@@ -14,11 +14,12 @@ The command-line interface for Transformez.
 import sys
 import click
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
 from fetchez.cli import setup_logging
 
+from .htdp import DEFAULT_HTDP_VERSION
 from transformez import api
 
 TRANSFORMEZ_COMMANDS = {
@@ -517,15 +518,37 @@ def htdp_group() -> None:
 @htdp_group.command("install", cls=FetchezMainCommand)
 @click.option(
     "--version",
-    default="3.5.0",
-    help="HTDP version to install (e.g., 3.3.0, 3.5.0, 3.6.0)",
+    default=DEFAULT_HTDP_VERSION,
+    show_default=True,
+    help="HTDP version to install.",
 )
-def install_htdp(version: str) -> None:
+@click.option(
+    "--project",
+    is_flag=True,
+    help="Install into this project's transformez_cache instead of the user installation.",
+)
+def install_htdp(
+    version: str,
+    project: bool,
+) -> None:
     """Download and install the NGS HTDP executable."""
 
-    from transformez.htdp import install_htdp_binary
+    from transformez.htdp import install_htdp_binary, HTDPInstallError
 
-    install_htdp_binary(version=version)
+    scope: Literal["project", "user"] = "project" if project else "user"
+
+    try:
+        path = install_htdp_binary(
+            version=version,
+            scope=scope,
+        )
+    except HTDPInstallError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.secho(
+        f"HTDP {version} installed to {path}",
+        fg="green",
+    )
 
 
 @htdp_group.command("run", cls=FetchezMainCommand)

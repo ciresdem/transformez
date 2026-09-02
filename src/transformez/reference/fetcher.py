@@ -24,8 +24,13 @@ import numpy as np
 import fetchez.api
 import fetchez.utils
 
-from ..grid_engine import CoastalContext, GridEngine, GridGen, GridCorruptionError
-from ..htdp import HTDP
+from transformez.grid_engine import (
+    CoastalContext,
+    GridEngine,
+    GridGen,
+    GridCorruptionError,
+)
+from transformez.htdp import HTDP
 from .bindings import OPERATION_BINDINGS
 
 logger = logging.getLogger(__name__)
@@ -380,7 +385,7 @@ class GridFetcher:
                             ny=self.ny,
                             frame_id_in=10,
                             frame_id_out=1,
-                            epoch_in=self.epoch_in,
+                            epoch_in=str(self.epoch_in),
                             epoch_out="2010.0",
                         )
                         fes_nad83 = global_shift + htdp_wgs_to_nad
@@ -398,7 +403,7 @@ class GridFetcher:
                         ny=self.ny,
                         frame_id_in=10,
                         frame_id_out=1,
-                        epoch_in=self.epoch_in,
+                        epoch_in=str(self.epoch_in),
                         epoch_out="2010.0",
                     )
                     fes_nad83 = global_shift + htdp_wgs_to_nad

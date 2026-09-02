@@ -115,6 +115,14 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    "epsg:3855": VerticalReference(
+        id="epsg:3855",
+        name="EGM2008 height",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
 }
 
 
@@ -194,6 +202,14 @@ OPERATION_BINDINGS = {
         native_frame="EPSG:6319",  # NAD83 Hub
         default_model="g2018",
     ),
+    "epsg:3855": OperationBinding(
+        reference_id="epsg:3855",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="EPSG:4979",  # WGS84 Hub
+        default_model="egm2008",
+    ),
 }
 
 
@@ -209,6 +225,11 @@ HTDP_FRAME_BINDINGS = {
     ),
     "EPSG:4979": HtdpFrameBinding(
         htdp_id=10, name="WGS_84(G2139)", reference_epoch=2020.0
+    ),
+    "EPSG:6321": HtdpFrameBinding(
+        htdp_id=2,
+        name="NAD_83(PA11/PACP00)",
+        reference_epoch=1997.0,
     ),
 }
 

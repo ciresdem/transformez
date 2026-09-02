@@ -21,6 +21,10 @@ from .bindings import OperationBinding
 logger = logging.getLogger(__name__)
 
 
+class TransformationError(Exception):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class GridOperation:
     reference: ResolvedVerticalReference
@@ -99,6 +103,10 @@ class TransformationPlanner:
                             epoch_in=source.coordinate_epoch,
                             epoch_out=target.coordinate_epoch,
                         )
+                    )
+                else:
+                    raise TransformationError(
+                        "Frame operation required, but no frame bindings were validated."
                     )
 
             if (
