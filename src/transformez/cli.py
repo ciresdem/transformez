@@ -14,7 +14,7 @@ The command-line interface for Transformez.
 import sys
 import click
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
 from fetchez.cli import setup_logging
@@ -535,7 +535,7 @@ def install_htdp(
 
     from transformez.htdp import install_htdp_binary, HTDPInstallError
 
-    scope = "project" if project else "user"
+    scope: Literal["project", "user"] = "project" if project else "user"
 
     try:
         path = install_htdp_binary(

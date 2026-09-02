@@ -61,6 +61,7 @@ def _shift_grid(
         epoch_out="2010.0",
         provenance={"TEST": "true"},
         generation_key="generation-key",
+        trace="",
         cache_dir=Path(cache_dir) if cache_dir else None,
     )
 
@@ -197,6 +198,7 @@ def test_uncertainty_is_reprojected_with_shift():
         epoch_out=grid.epoch_out,
         provenance=grid.provenance,
         generation_key=grid.generation_key,
+        trace=grid.trace,
         cache_dir=grid.cache_dir,
     )
 

@@ -383,8 +383,8 @@ class GridFetcher:
                             region=self.region,
                             nx=self.nx,
                             ny=self.ny,
-                            frame_id_in="10",
-                            frame_id_out="1",
+                            frame_id_in=10,
+                            frame_id_out=1,
                             epoch_in=str(self.epoch_in),
                             epoch_out="2010.0",
                         )
@@ -401,8 +401,8 @@ class GridFetcher:
                         region=self.region,
                         nx=self.nx,
                         ny=self.ny,
-                        frame_id_in="10",
-                        frame_id_out="1",
+                        frame_id_in=10,
+                        frame_id_out=1,
                         epoch_in=str(self.epoch_in),
                         epoch_out="2010.0",
                     )

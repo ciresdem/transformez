@@ -15,7 +15,7 @@ return a ShiftGrid object to do with what you will.
 import logging
 import hashlib
 from pathlib import Path
-from typing import Optional, List, Union, Mapping
+from typing import List, Union, Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -153,7 +153,7 @@ class ShiftGrid:
             cache_dir=self.cache_dir,
         )
 
-    def write(self, filename: Optional[str | Path] = None, **kwargs):
+    def write(self, filename: str | Path | None = None, **kwargs):
         from .grid_engine import GridWriter
 
         path = Path(filename) if filename is not None else self.storage_path()
@@ -257,11 +257,11 @@ def build_shift_grid(
     epoch_in: str = "2010.0",
     epoch_out: str = "2010.0",
     decay_pixels: int = 100,
-    decay_distance_m: Optional[float] = None,
-    buffer_distance_m: Optional[float] = None,
-    max_vdatum_extension_m: Optional[float] = None,
+    decay_distance_m: float | None = None,
+    buffer_distance_m: float = 0.0,
+    max_vdatum_extension_m: float | None = None,
     extrapolate_inland: bool = False,
-    cache_dir: Optional[str | Path] = None,
+    cache_dir: str | Path | None = None,
     use_stations: bool = False,
     verbose: bool = False,
 ) -> ShiftGrid:
