@@ -117,6 +117,14 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    "epsg:8228": VerticalReference(
+        id="epsg:8228",
+        name="NAVD88 height (us-feet)",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="us-feet",
+        unit_to_metre=0.3048,
+    ),
     "epsg:3855": VerticalReference(
         id="epsg:3855",
         name="EGM2008 height",
@@ -243,6 +251,14 @@ OPERATION_BINDINGS = {
         provider_datum=None,
         native_frame="EPSG:6319",
         default_model="g2018",
+    ),
+    "epsg:8228": OperationBinding(
+        reference_id="epsg:8228",
+        engine="proj",
+        provider="cdn",
+        provider_datum=None,
+        native_frame="EPSG:6319",
+        default_model="g2012b",
     ),
     "epsg:3855": OperationBinding(
         reference_id="epsg:3855",
