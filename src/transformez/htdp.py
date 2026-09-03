@@ -107,7 +107,9 @@ class HTDP:
         from .reference.bindings import HTDP_FRAME_BINDINGS
 
         if f"EPSG:{epsg}" in HTDP_FRAME_BINDINGS.keys():
-            return HTDP_FRAME_BINDINGS.get(f"EPSG:{epsg}").htdp_id
+            binding = HTDP_FRAME_BINDINGS.get(f"EPSG:{epsg}")
+            if binding:
+                return binding.htdp_id
         raise ValueError(f"EPSG {epsg} not defined in HTDP_FRAME_BINDINGS.")
 
     def run_grid(
@@ -154,12 +156,12 @@ class HTDP:
             if frame_id_in is None:
                 if epsg_in is None:
                     raise ValueError("frame_id_in or epsg_in is required.")
-                frame_id_in = self._legacy_htdp_id_from_epsg(epsg_in)
+                frame_id_in = self._htdp_id_from_epsg(epsg_in)
 
             if frame_id_out is None:
                 if epsg_out is None:
                     raise ValueError("frame_id_out or epsg_out is required.")
-                frame_id_out = self._legacy_htdp_id_from_epsg(epsg_out)
+                frame_id_out = self._htdp_id_from_epsg(epsg_out)
         except ValueError as e:
             logger.error(e)
             return np.zeros((ny, nx))
