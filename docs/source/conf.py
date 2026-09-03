@@ -27,6 +27,8 @@ nitpick_ignore = [
     ("py:class", "tkinter.getdouble"),
     ("py:class", "tkinter.getdoublxse"),
     ("py:class", "pyproj.transformer.Transformer"),
+    ("py:class", "pyproj.crs.crs.CRS"),
+    ("py:class", "affine.Affine"),
 ]
 
 extensions = [
