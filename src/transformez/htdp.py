@@ -24,8 +24,6 @@ import zipfile
 import numpy as np
 from typing import Tuple, Optional, Any, Literal
 
-from .definitions import Datums  # Required for ID lookups
-
 logger = logging.getLogger(__name__)
 
 
@@ -103,19 +101,14 @@ class HTDP:
                 f"Run 'transformez htdp install --version {self.version}'"
             )
 
-    def _legacy_htdp_id_from_epsg(self, epsg: int) -> int:
-        """Look up HTDP numeric IDs (e.g., NAD83=1, WGS84=10)
-        transform.py passes ints (EPSGs), we need HTDP internal IDs
-        """
+    def _htdp_id_from_epsg(self, epsg: int) -> int:
+        """Look up HTDP numeric IDs (e.g., NAD83=1, WGS84=10)"""
 
-        if epsg in Datums.HTDP:
-            return Datums.HTDP[epsg]["htdp_id"]
-        # Fallback for common codes if not in dictionary
-        if epsg == 6319:
-            return 1  # NAD83(2011)
-        if epsg == 4979:
-            return 10  # WGS84(G1762)
-        raise ValueError(f"EPSG {epsg} not defined in HTDP dictionary.")
+        from .reference.bindings import HTDP_FRAME_BINDINGS
+
+        if f"EPSG:{epsg}" in HTDP_FRAME_BINDINGS.keys():
+            return HTDP_FRAME_BINDINGS.get(f"EPSG:{epsg}").htdp_id
+        raise ValueError(f"EPSG {epsg} not defined in HTDP_FRAME_BINDINGS.")
 
     def run_grid(
         self,
