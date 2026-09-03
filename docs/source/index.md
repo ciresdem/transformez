@@ -43,13 +43,13 @@ pip install transformez
 **Generate a vertical shift grid for anywhere on Earth.**
 
 ```bash
-transformez grid -R -166/-164/63/64 -E 1s -I mllw -O 4979
+transformez build -R -166/-164/63/64 -E 1s -I mllw -O 4979
 ```
 
 **Transform a raster directly.** Transformez reads the bounds/resolution from the file.
 
 ```bash
-transformez raster my_dem.tif -I mllw -O 5703
+transformez shift my_dem.tif -I mllw -O 5703
 ```
 
 ## Python API
@@ -96,7 +96,7 @@ utm_shift.write("mllw_to_navd88_utm.tif")
 out_file = transformez.transform_raster(
     input_raster="my_dem_mllw.tif",
     datum_in="vdatum:mllw",
-    datum_out="5703:g2012b",  # NAVD88 using specific GEOID12B
+    datum_out="5703+geoid:g2012b",  # NAVD88 using specific GEOID12B
     decay_pixels=0,           # Set to 0 for infinite inland extrapolation (Modeling)
     output_raster="my_dem_navd88.tif"
 )

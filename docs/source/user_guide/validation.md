@@ -51,7 +51,7 @@ This is not an engine-equivalence test: the reference station values and the gri
 | Station | Published Offset | Transformez | Delta |
 | :--- | :--- | :--- | :--- |
 
-![International Gauges]({intl_stats['image']})
+![International Gauges](../_static/validation_international_bars.png)
 
 > **How to read this test:** Agreement at the decimeter scale is meaningful here because the comparison is between a gridded global ocean model and local station realizations, not two implementations of the same transformation grid. The test is primarily a validation of global fallback selection and physical plausibility.
 
