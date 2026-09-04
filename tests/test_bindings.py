@@ -58,6 +58,20 @@ def test_binding_ids():
         assert key == binding.reference_id
 
 
-def test_binding_dui():
+def test_binding_duo():
     for key, _binding in CUSTOM_VERTICAL_REFERENCES.items():
         assert OPERATION_BINDINGS.get(key) is not None
+
+
+@pytest.mark.parametrize(
+    ("datum", "proxy"),
+    [
+        ("vdatum:msl", "global:mss"),
+        ("vdatum:mllw", "global:lat"),
+        ("vdatum:mlw", "global:lat"),
+        ("vdatum:mhhw", "global:hat"),
+        ("vdatum:mhw", "global:hat"),
+    ],
+)
+def test_vdatum_global_proxy_bindings(datum, proxy):
+    assert OPERATION_BINDINGS[datum].global_proxy == proxy
