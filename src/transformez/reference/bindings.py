@@ -187,6 +187,7 @@ OPERATION_BINDINGS = {
         provider_datum="msl",
         native_frame="EPSG:6319",
         default_model="geoid:g2018",
+        global_proxy="global:mss",
     ),
     "vdatum:mllw": OperationBinding(
         reference_id="vdatum:mllw",
@@ -195,6 +196,7 @@ OPERATION_BINDINGS = {
         provider_datum="mllw",
         native_frame="EPSG:6319",
         default_model="g2018",
+        global_proxy="global:lat",
     ),
     "vdatum:mlw": OperationBinding(
         reference_id="vdatum:mlw",
@@ -203,6 +205,7 @@ OPERATION_BINDINGS = {
         provider_datum="mlw",
         native_frame="EPSG:6319",
         default_model="geoid:g2018",
+        global_proxy="global:lat",
     ),
     "vdatum:mhhw": OperationBinding(
         reference_id="vdatum:mhhw",
@@ -211,6 +214,7 @@ OPERATION_BINDINGS = {
         provider_datum="mhhw",
         native_frame="EPSG:6319",
         default_model="geoid:g2018",
+        global_proxy="global:hat",
     ),
     "vdatum:mhw": OperationBinding(
         reference_id="vdatum:mhw",
@@ -219,6 +223,7 @@ OPERATION_BINDINGS = {
         provider_datum="mhw",
         native_frame="EPSG:6319",
         default_model="geoid:g2018",
+        global_proxy="global:hat",
     ),
     "global:mss": OperationBinding(
         reference_id="global:mss",

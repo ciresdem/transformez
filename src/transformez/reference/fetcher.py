@@ -310,17 +310,6 @@ class GridFetcher:
             except Exception:
                 pass
 
-        coastal_context = self._fetch_coastal_context()
-        tidal_shift = GridEngine.fill_nans(
-            tidal_shift,
-            decay_pixels=self.decay_pixels,
-            buffer_pixels=10,
-            coastal_context=coastal_context,
-            decay_distance_m=self.decay_distance_m,
-            buffer_distance_m=self.buffer_distance_m,
-            extrapolate_inland=self.extrapolate_inland,
-        )
-
         total_shift = mss_grid + tidal_shift
         return total_shift, " + ".join(desc)
 
