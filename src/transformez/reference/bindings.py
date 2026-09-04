@@ -108,71 +108,6 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
-    # GRAVITATIONAL
-    "epsg:5703": VerticalReference(
-        id="epsg:5703",
-        name="NAVD88 height",
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        axis_direction=AxisDirection.UP,
-        unit_name="metre",
-        unit_to_metre=1.0,
-    ),
-    "epsg:8228": VerticalReference(
-        id="epsg:8228",
-        name="NAVD88 height (us-feet)",
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        axis_direction=AxisDirection.UP,
-        unit_name="us-feet",
-        unit_to_metre=0.3048,
-    ),
-    "epsg:3855": VerticalReference(
-        id="epsg:3855",
-        name="EGM2008 height",
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        axis_direction=AxisDirection.UP,
-        unit_name="metre",
-        unit_to_metre=1.0,
-    ),
-    "epsg:5773": VerticalReference(
-        id="epsg:5773",
-        name="EGM96 height",
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        axis_direction=AxisDirection.UP,
-        unit_name="metre",
-        unit_to_metre=1.0,
-    ),
-    "epsg:6641": VerticalReference(
-        id="epsg:6641",
-        name="PRVD02 height",
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        axis_direction=AxisDirection.UP,
-        unit_name="metre",
-        unit_to_metre=1.0,
-    ),
-    "epsg:6642": VerticalReference(
-        id="epsg:6642",
-        name="VIVD09 height",
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        axis_direction=AxisDirection.UP,
-        unit_name="metre",
-        unit_to_metre=1.0,
-    ),
-    "epsg:6643": VerticalReference(
-        id="epsg:6643",
-        name="ASVD02 height",
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        axis_direction=AxisDirection.UP,
-        unit_name="metre",
-        unit_to_metre=1.0,
-    ),
-    "epsg:6647": VerticalReference(
-        id="epsg:6647",
-        name="CGVD2013 height",
-        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        axis_direction=AxisDirection.UP,
-        unit_name="metre",
-        unit_to_metre=1.0,
-    ),
 }
 
 
@@ -332,7 +267,7 @@ HTDP_FRAME_BINDINGS = {
     "EPSG:6321": HtdpFrameBinding(
         htdp_id=2,
         name="NAD_83(PA11/PACP00)",
-        reference_epoch=1997.0,
+        reference_epoch=2010.0,
     ),
 }
 

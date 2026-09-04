@@ -20,6 +20,7 @@ from fetchez.utils import FetchezMainGroup, FetchezMainCommand
 from fetchez.cli import setup_logging
 
 from .htdp import DEFAULT_HTDP_VERSION
+from .reference.parser import parse_reference
 from transformez import api
 
 TRANSFORMEZ_COMMANDS = {
@@ -183,7 +184,9 @@ def transform_grid(
 # =====================================================================
 @transformez_cli.command("shift", cls=FetchezMainCommand)
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
-@click.option("-I", "--input-datum", required=True, help="Source datum (e.g., 'mllw').")
+@click.option(
+    "-I", "--input-datum", required=False, help="Source datum (e.g., 'mllw')."
+)
 @click.option(
     "-O", "--output-datum", required=True, help="Target datum (e.g., '5703:g2012b')."
 )
@@ -407,7 +410,8 @@ def transform_list() -> None:
     geoid_epsgs = []
     for ref_id, binding in OPERATION_BINDINGS.items():
         if ref_id.startswith("epsg:") and binding.engine == "proj":
-            ref_vert_obj = CUSTOM_VERTICAL_REFERENCES.get(ref_id)
+            # ref_vert_obj = CUSTOM_VERTICAL_REFERENCES.get(ref_id)
+            ref_vert_obj = parse_reference(ref_id).vertical
             name = ref_vert_obj.name if ref_vert_obj else "Unknown"
             geoid_epsgs.append(
                 (ref_id.replace("epsg:", ""), name, binding.default_model)

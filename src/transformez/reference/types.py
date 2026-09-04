@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Mapping, Any
 
 from pyproj import CRS
 
@@ -64,6 +64,9 @@ class ParsedReference:
     vertical_specified: bool
     coordinate_epoch: float | None = None
     source_text: str | None = None
+
+
+ReferenceInput = str | int | CRS | Mapping[str, Any] | ParsedReference
 
 
 @dataclass(frozen=True, slots=True)

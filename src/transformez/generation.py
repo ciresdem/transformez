@@ -25,7 +25,7 @@ from pyproj import CRS
 
 from rasterio.transform import from_bounds, Affine
 
-from .reference.types import ParsedReference
+from .reference.types import ParsedReference, ReferenceInput
 from .reference.parser import parse_reference
 
 from fetchez.spatial import parse_region, Region
@@ -196,7 +196,7 @@ def _region_to_wgs84(
         # Important policy decision.
         region_crs = CRS.from_epsg(4326)
 
-    working_region.srs = region_crs.to_epsg()  # fetchez cant serialize the CRS
+    working_region.srs = region_crs.to_epsg() or region_crs.to_wkt()
 
     if region_crs != CRS.from_epsg(4326):
         working_region.warp("EPSG:4326")
@@ -248,8 +248,8 @@ def _generation_key(
 def build_shift_grid(
     region: Union[List[float], str, Region],
     increment: Union[str, float],
-    datum_in: str,
-    datum_out: str,
+    datum_in: ReferenceInput,
+    datum_out: ReferenceInput,
     epoch_in: str = "2010.0",
     epoch_out: str = "2010.0",
     decay_pixels: int = 100,

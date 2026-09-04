@@ -21,6 +21,12 @@ from .bindings import get_operation_binding, get_htdp_frame_binding
 from .parser import UnsupportedReferenceError
 
 
+class UnresolvedReferenceError(UnsupportedReferenceError):
+    """A valid reference that lacks an executable realization."""
+
+    pass
+
+
 def resolve_reference(
     parsed: ParsedReference,
     inherited_horizontal: CRS | None = None,
@@ -38,7 +44,6 @@ def resolve_reference(
         vertical = None
     else:
         binding = get_operation_binding(parsed.vertical)
-
         if parsed.vertical.kind is VerticalKind.ELLIPSOIDAL_HEIGHT:
             if parsed.vertical.crs is None:
                 raise UnsupportedReferenceError(
@@ -54,8 +59,9 @@ def resolve_reference(
             effective_model = model or binding.default_model
 
         else:
-            raise UnsupportedReferenceError(
-                f"No operation binding is available for {parsed.vertical.id!r}."
+            raise UnresolvedReferenceError(
+                f"{parsed.vertical.id!r} was successfully parsed, "
+                "but no operation binding is registered."
             )
 
         frame_binding = get_htdp_frame_binding(native_frame)
