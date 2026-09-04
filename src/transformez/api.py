@@ -33,10 +33,11 @@ import numpy as np
 from typing import List, Union, Optional, Tuple, Any
 from dataclasses import dataclass
 
-from pyproj import Transformer
+from pyproj import Transformer, CRS
 
 from .grid_engine import GridEngine
 from .utils import RasterQuery, UNITS
+from .reference.types import ReferenceInput
 from .reference.parser import parse_reference
 from .generation import build_shift_grid, ShiftGrid
 
@@ -117,8 +118,8 @@ def plot_grid(
 def generate_grid(
     region: Union[List[float], str, Region],
     increment: Union[str, float],
-    datum_in: str,
-    datum_out: str,
+    datum_in: ReferenceInput,
+    datum_out: ReferenceInput,
     epoch_in: str = "2010.0",
     epoch_out: str = "2010.0",
     decay_pixels: int = 100,
@@ -243,8 +244,9 @@ def build_components(
 
 def transform_raster(
     input_raster: str | Path,
-    datum_in: str,
-    datum_out: str,
+    *,
+    datum_in: ReferenceInput | None = None,
+    datum_out: ReferenceInput,
     epoch_in: str = "2010.0",
     epoch_out: str = "2010.0",
     decay_pixels: int = 100,
@@ -300,9 +302,9 @@ def transform_raster(
         raise ValueError(f"Input raster not found: {input_raster}")
 
     if output_raster is None:
+        out_label = str(datum_out).replace(":", "_").replace(" ", "_")
         output_raster = input_raster.with_name(
-            f"{input_raster.stem}_trans_{datum_out.replace(':', '_')}"
-            f"{input_raster.suffix}"
+            f"{input_raster.stem}_trans_{out_label}{input_raster.suffix}"
         )
     else:
         output_raster = Path(output_raster)
@@ -313,18 +315,47 @@ def transform_raster(
         # native_transform = src.transform
         nx, ny = src.width, src.height
 
+    native_pyproj_crs = (
+        CRS.from_user_input(native_crs) if native_crs is not None else None
+    )
+
+    native_ref = (
+        parse_reference(native_pyproj_crs) if native_pyproj_crs is not None else None
+    )
+
+    if datum_in is None:
+        if native_ref is None:
+            raise ValueError("Input raster has no CRS; datum_in must be specified.")
+
+        source_ref = native_ref
+        effective_datum_in: ReferenceInput = native_ref
+    else:
+        source_ref = parse_reference(datum_in)
+        effective_datum_in = datum_in
+
+    source_horizontal = (
+        source_ref.horizontal
+        if source_ref.horizontal_specified
+        else native_ref.horizontal
+        if native_ref
+        else None
+    )
+
+    if source_horizontal is None:
+        raise ValueError("Unable to determine the input raster's horizontal CRS.")
+
     region_obj = Region(
         native_bounds.left,
         native_bounds.right,
         native_bounds.bottom,
         native_bounds.top,
     )
-    region_obj.srs = native_crs.to_epsg() or native_crs.to_wkt()
 
+    region_obj.srs = source_horizontal
     shift_grid = build_shift_grid(
         region_obj,
         "3s",
-        datum_in,
+        effective_datum_in,
         datum_out,
         epoch_in,
         epoch_out,
@@ -349,7 +380,7 @@ def transform_raster(
             z_unit_out = shift_grid.target_reference.vertical.unit_name
 
     aligned_shift = shift_grid.reproject(
-        native_crs,
+        source_horizontal,
         dst_region=region_obj,
         dst_shape=(ny, nx),
     )

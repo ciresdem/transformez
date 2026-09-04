@@ -14,9 +14,15 @@ from __future__ import annotations
 import logging
 from pyproj import CRS
 from pyproj.exceptions import CRSError
-from typing import Union, Dict, Mapping, Any
+from typing import Mapping, Any
 
-from .types import VerticalKind, AxisDirection, VerticalReference, ParsedReference
+from .types import (
+    VerticalKind,
+    AxisDirection,
+    VerticalReference,
+    ParsedReference,
+    ReferenceInput,
+)
 from .bindings import CUSTOM_REGISTRY
 
 logger = logging.getLogger(__name__)
@@ -64,26 +70,44 @@ def vertical_only(vert_ref: VerticalReference, text: str) -> ParsedReference:
     )
 
 
-def vertical_reference_from_crs(
-    crs: CRS, kind: VerticalKind | None = None
-) -> VerticalReference:
-    """Translates a pure PROJ Vertical CRS into our internal VerticalReference."""
+def infer_vertical_kind(crs: CRS) -> VerticalKind:
+    axis = crs.axis_info[-1]
+    name = crs.name.casefold()
+    axis_name = axis.name.casefold()
 
-    # Extract the vertical axis (usually the first and only axis in a vertical CRS)
-    # For a 3d CRS, the vertical access is [2], so we can get it either way by using
-    # [-1]
+    if crs.is_vertical:
+        if axis.direction.casefold() == "down":
+            return VerticalKind.DEPTH
+
+        if "dynamic height" in name:
+            return VerticalKind.DYNAMIC_HEIGHT
+
+        if "depth" in name or "depth" in axis_name:
+            return VerticalKind.DEPTH
+
+        return VerticalKind.GRAVITY_RELATED_HEIGHT
+
+    if crs.is_geographic and len(crs.axis_info) == 3:
+        return VerticalKind.ELLIPSOIDAL_HEIGHT
+
+    return VerticalKind.LOCAL_HEIGHT
+
+
+def vertical_reference_from_crs(
+    crs: CRS,
+    kind: VerticalKind | None = None,
+) -> VerticalReference:
     axis = crs.axis_info[-1]
 
     direction = (
-        AxisDirection.DOWN if axis.direction.lower() == "down" else AxisDirection.UP
+        AxisDirection.DOWN if axis.direction.casefold() == "down" else AxisDirection.UP
     )
 
-    # Try to grab the EPSG code, otherwise fallback to unknown
     auth = crs.to_authority()
     ref_id = f"{auth[0]}:{auth[1]}".lower() if auth else "proj:unknown"
 
     if kind is None:
-        kind = VerticalKind.GRAVITY_RELATED_HEIGHT
+        kind = infer_vertical_kind(crs)
 
     return VerticalReference(
         id=ref_id,
@@ -122,20 +146,14 @@ def decompose_standard_crs(crs: CRS) -> ParsedReference:
     if len(crs.axis_info) == 3 and crs.is_geographic:
         return ParsedReference(
             horizontal=crs.to_2d(),
-            vertical=vertical_reference_from_crs(
-                crs,
-                kind=VerticalKind.ELLIPSOIDAL_HEIGHT,
-            ),
+            vertical=vertical_reference_from_crs(crs),
             horizontal_specified=True,
             vertical_specified=True,
             source_text=crs.to_string(),
         )
 
     if crs.is_vertical:
-        vert_ref = vertical_reference_from_crs(
-            crs,
-            kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
-        )
+        vert_ref = vertical_reference_from_crs(crs)
         return vertical_only(vert_ref, crs.to_string())
 
     return ParsedReference(
@@ -186,10 +204,7 @@ def parse_reference_mapping(mapping: Mapping[str, Any]) -> ParsedReference:
     )
 
 
-def parse_reference(
-    value: Union[str, int, CRS, Dict, ParsedReference, VerticalReference],
-) -> ParsedReference:
-    """The entry point for all coordinate reference strings."""
+def parse_reference(value: ReferenceInput) -> ParsedReference:
     if isinstance(value, ParsedReference):
         return value
 
@@ -200,45 +215,54 @@ def parse_reference(
         return parse_reference_mapping(value)
 
     if isinstance(value, CRS):
-        return decompose_standard_crs(value)  # , source_text=value.to_string())
+        return decompose_standard_crs(value)
 
     if isinstance(value, int):
         try:
-            crs = CRS.from_epsg(value)
+            return decompose_standard_crs(CRS.from_epsg(value))
         except CRSError as exc:
             raise InvalidReferenceError(f"Unknown EPSG CRS: {value}") from exc
-        return decompose_standard_crs(crs)  # , source_text=f"EPSG:{value}")
 
     text = str(value).strip()
     if not text:
         raise InvalidReferenceError("Reference cannot be empty.")
 
-    if "+" in text:
-        legacy_mapping = {"horizontal": text.split("+")[0]}
-        legacy_mapping["vertical"] = text.split("+")[1]
-        return parse_reference(legacy_mapping)
+    # Legacy bare aliases
+    alias = LEGACY_ALIASES.get(text.casefold())
+    if alias is not None:
+        warn_legacy_alias(text, alias)
+        return parse_reference(alias)
 
-    legacy_id = LEGACY_ALIASES.get(text.split("+")[-1].casefold())
-    if legacy_id:
-        warn_legacy_alias(text, legacy_id)
-        text = legacy_id
-
+    # Transformez custom namespaces
     prefix = text.partition(":")[0].casefold()
     if prefix in CUSTOM_REFERENCE_PREFIXES:
         try:
             vert_ref = CUSTOM_REGISTRY.resolve(text)
-        except ValueError as e:
-            raise InvalidReferenceError("Invalid custom reference") from e
+        except ValueError as exc:
+            raise InvalidReferenceError(f"Unknown custom reference: {text!r}") from exc
         return vertical_only(vert_ref, text)
 
+    # Numeric EPSG shorthand
     if text.isdecimal():
         text = f"EPSG:{text}"
 
+    # Let PROJ have first chance at all normal CRS strings/WKT
     try:
         crs = CRS.from_user_input(text)
-    except Exception as exc:
-        raise InvalidReferenceError(
-            f"Unsupported coordinate reference: {value!r}"
-        ) from exc
+    except CRSError:
+        crs = None
 
-    return decompose_standard_crs(crs)
+    if crs is not None:
+        return decompose_standard_crs(crs)
+
+    # Transformez compound shorthand: horizontal+vertical
+    if "+" in text:
+        horizontal, vertical = text.rsplit("+", 1)
+        return parse_reference(
+            {
+                "horizontal": horizontal,
+                "vertical": vertical,
+            }
+        )
+
+    raise InvalidReferenceError(f"Unsupported coordinate reference: {value!r}")

@@ -121,8 +121,8 @@ def test_transform_raster_aligns_shift_to_projected_dem(
 
     result = transform_raster(
         input_raster=str(src_path),
-        datum_in="EPSG:4326+3855",
-        datum_out="EPSG:4326+5703",
+        datum_in="EPSG:3855",
+        datum_out="EPSG:5703",
         output_raster=str(dst_path),
         z_unit_in="m",
         z_unit_out="m",
