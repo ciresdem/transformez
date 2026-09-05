@@ -10,6 +10,5 @@ usage
 cli_usage
 references
 methodology
-supported_datums
 validation
 ```
