@@ -24,7 +24,7 @@ from transformez.reference.types import VerticalKind
 
 @click.group(cls=FetchezMainGroup, name="list", fetchez_commands=["references"])
 def list_group() -> None:
-    """Manage the NGS HTDP transformation engine."""
+    """List supported references and transformation resources."""
 
     pass
 
