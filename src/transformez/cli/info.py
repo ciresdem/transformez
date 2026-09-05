@@ -14,6 +14,7 @@ import sys
 import click
 
 from pathlib import Path
+from importlib.metadata import version, PackageNotFoundError
 
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
 
@@ -58,34 +59,45 @@ def reference(ref_id) -> None:
             click.echo(f"  {'Axis Direction:':<18} {parsed_vertical.axis_direction}")
             click.echo(f"  {'Units:':<18} {parsed_vertical.unit_name}")
 
-            resolved_binding = resolved_vertical.binding
-            if resolved_binding is not None:
-                click.secho("\n Execution:", fg="cyan", bold=True)
-                click.echo("-" * 12)
-
-                click.echo(f"  {'Engine:':<18} {resolved_binding.engine}")
-                click.echo(f"  {'Provider:':<18} {resolved_binding.provider}")
-                click.echo(
-                    f"  {'Provider Datum:':<18} {resolved_binding.provider_datum}"
-                )
-                click.echo(f"  {'Native Frame:':<18} {resolved_binding.native_frame}")
-                click.echo(f"  {'Default Model:':<18} {resolved_binding.default_model}")
-                click.echo(f"  {'Global Proxy:':<18} {resolved_binding.global_proxy}")
-
-                resolved_frame_binding = resolved_vertical.frame_binding
-                if resolved_frame_binding is not None:
-                    click.secho("\n Frame:", fg="cyan", bold=True)
+            if resolved_vertical is not None:
+                resolved_binding = resolved_vertical.binding
+                if resolved_binding is not None:
+                    click.secho("\n Execution:", fg="cyan", bold=True)
                     click.echo("-" * 12)
 
-                    click.echo(f"  {'Name:':<18} {resolved_frame_binding.name}")
-                    click.echo(f"  {'HTDP ID:':<18} {resolved_frame_binding.htdp_id}")
+                    click.echo(f"  {'Engine:':<18} {resolved_binding.engine}")
+                    click.echo(f"  {'Provider:':<18} {resolved_binding.provider}")
                     click.echo(
-                        f"  {'Reference Epoch:':<18} {resolved_frame_binding.reference_epoch}"
+                        f"  {'Provider Datum:':<18} {resolved_binding.provider_datum}"
                     )
+                    click.echo(
+                        f"  {'Native Frame:':<18} {resolved_binding.native_frame}"
+                    )
+                    click.echo(
+                        f"  {'Default Model:':<18} {resolved_binding.default_model}"
+                    )
+                    click.echo(
+                        f"  {'Global Proxy:':<18} {resolved_binding.global_proxy}"
+                    )
+
+                    resolved_frame_binding = resolved_vertical.frame_binding
+                    if resolved_frame_binding is not None:
+                        click.secho("\n Frame:", fg="cyan", bold=True)
+                        click.echo("-" * 12)
+
+                        click.echo(f"  {'Name:':<18} {resolved_frame_binding.name}")
+                        click.echo(
+                            f"  {'HTDP ID:':<18} {resolved_frame_binding.htdp_id}"
+                        )
+                        click.echo(
+                            f"  {'Reference Epoch:':<18} {resolved_frame_binding.reference_epoch}"
+                        )
+                    else:
+                        click.echo(f"  No frame binding available for {ref_id}")
                 else:
-                    click.echo(f"  No frame binding available for {ref_id}")
+                    click.echo(f"  No operation binding available for {ref_id}")
             else:
-                click.echo(f"  No operation binding available for {ref_id}")
+                click.echo(f"  No vertical reference available for {ref_id}")
         else:
             click.echo(f"  No vertical reference available for {ref_id}")
 
@@ -106,7 +118,7 @@ def binding(ref_id) -> None:
 
         if resolved_vertical is not None:
             resolved_binding = resolved_vertical.binding
-            if resolved_binding is not None:
+            if resolved_binding is not None and parsed_vertical is not None:
                 click.secho("\n Operation Binding:", fg="cyan", bold=True)
                 click.echo("-" * 12)
 
@@ -144,20 +156,23 @@ def frame(ref_id) -> None:
         click.echo("-" * 12)
 
         click.echo(f"  {'ID:':<18} {parsed_ref.source_text}")
-        if parsed_vertical:
-            resolved_frame_binding = resolved_vertical.frame_binding
-            if resolved_frame_binding is not None:
-                click.echo(f"  {'Name:':<18} {resolved_frame_binding.name}")
-                click.echo(f"  {'HTDP ID:':<18} {resolved_frame_binding.htdp_id}")
-                click.echo(
-                    f"  {'Reference Epoch:':<18} {resolved_frame_binding.reference_epoch}"
-                )
-                click.echo(f"  {'HTDP Support:':<18} Yes")
-            else:
-                click.echo(f"  No vertical frame binding available for {ref_id}")
-        elif parsed_horizontal:
-            click.echo(f"  {'Name:':<18} {parsed_ref.horizontal.name}")
-            click.echo(f"  {'HTDP Support:':<18} No")
+        if parsed_ref is not None:
+            if parsed_vertical is not None and resolved_vertical is not None:
+                resolved_frame_binding = resolved_vertical.frame_binding
+                if resolved_frame_binding is not None:
+                    click.echo(f"  {'Name:':<18} {resolved_frame_binding.name}")
+                    click.echo(f"  {'HTDP ID:':<18} {resolved_frame_binding.htdp_id}")
+                    click.echo(
+                        f"  {'Reference Epoch:':<18} {resolved_frame_binding.reference_epoch}"
+                    )
+                    click.echo(f"  {'HTDP Support:':<18} Yes")
+                else:
+                    click.echo(f"  No vertical frame binding available for {ref_id}")
+            elif parsed_horizontal is not None:
+                click.echo(f"  {'Name:':<18} {parsed_horizontal.name}")
+                click.echo(f"  {'HTDP Support:':<18} No")
+        else:
+            raise InvalidReferenceError
 
     except InvalidReferenceError:
         click.echo(f"  {ref_id} is unsupported by transformez")
@@ -167,30 +182,27 @@ def frame(ref_id) -> None:
 def system() -> None:
     """Get information about Transformez"""
 
-    from transformez import __version__
+    __version__ = version("transformez")
 
     try:
-        from pyproj import __version__ as pyproj_version
-
-    except ImportError:
+        pyproj_version = version("pyproj")
+    except PackageNotFoundError:
         pyproj_version = "Not installed."
 
     try:
-        from rasterio import __version__ as rasterio_version
-
-    except ImportError:
+        rasterio_version = version("rasterio")
+    except PackageNotFoundError:
         rasterio_version = "Not installed."
 
     try:
-        from fetchez import __version__ as fetchez_version
-
-    except ImportError:
+        fetchez_version = version("fetchez")
+    except PackageNotFoundError:
         fetchez_version = "Not installed."
 
     try:
         from transformez.htdp import resolve_htdp_path
 
-        htdp_bin = resolve_htdp_path()
+        htdp_bin: Path | str | None = resolve_htdp_path()
         if htdp_bin:
             htdp_version = str(htdp_bin).split("_")[-1]
         else:
