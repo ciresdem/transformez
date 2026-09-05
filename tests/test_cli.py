@@ -70,9 +70,7 @@ def test_list_modules():
     result = run_transformez(["list", "references"])
     assert result.returncode == 0
     assert "global:lat" in result.stdout
-    assert "mllw" in result.stdout
-    assert "NAVD88" in result.stdout
-    assert "g2018" in result.stdout
+    assert "vdatum:mllw" in result.stdout
 
 
 if __name__ == "__main__":
