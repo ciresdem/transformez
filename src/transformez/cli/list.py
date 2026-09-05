@@ -11,6 +11,8 @@ transformez.cli.list
 
 import click
 
+from typing import Any
+
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
 
 from transformez.reference.parser import parse_reference
@@ -22,72 +24,122 @@ from transformez.reference.bindings import (
 from transformez.reference.types import VerticalKind
 
 
-@click.group(cls=FetchezMainGroup, name="list", fetchez_commands=["references"])
+@click.group(
+    cls=FetchezMainGroup,
+    name="list",
+    fetchez_commands=["references", "bindings", "frames", "geoids", "providers"],
+)
 def list_group() -> None:
     """List supported references and transformation resources."""
 
     pass
 
 
-# --- LIST DATUMS, ETC. ---
 @list_group.command("references", cls=FetchezMainCommand)
-def list_references() -> None:
-    """List all supported vertical datums, EPSG codes, and geoids."""
+def references() -> None:
+    """List Transformez-specific vertical references."""
 
-    tidal_surfaces = []
-    global_models = []
+    for kind in VerticalKind:
+        refs = [
+            (ref_id, ref)
+            for ref_id, ref in CUSTOM_VERTICAL_REFERENCES.items()
+            if ref.kind == kind
+        ]
 
-    for ref_id, ref_obj in CUSTOM_VERTICAL_REFERENCES.items():
-        if ref_obj.kind == VerticalKind.TIDAL_HEIGHT:
-            tidal_surfaces.append((ref_id, ref_obj.name))
-        elif ref_obj.kind == VerticalKind.MODEL_SURFACE:
-            global_models.append((ref_id, ref_obj.name))
+        if not refs:
+            continue
 
-    geoid_epsgs = []
+        click.secho(
+            f"\n{kind.value.replace('_', ' ').title()}:",
+            fg="cyan",
+            bold=True,
+        )
+
+        for ref_id, ref in sorted(refs):
+            click.echo(f"  {ref_id:<16} {ref.name}")
+
+
+@list_group.command("bindings", cls=FetchezMainCommand)
+def bindings() -> None:
+    """List registered transformation bindings."""
+
+    bindings = []
     for ref_id, binding in OPERATION_BINDINGS.items():
-        if ref_id.startswith("epsg:") and binding.engine == "proj":
-            # ref_vert_obj = CUSTOM_VERTICAL_REFERENCES.get(ref_id)
-            ref_vert_obj = parse_reference(ref_id).vertical
-            name = ref_vert_obj.name if ref_vert_obj else "Unknown"
-            geoid_epsgs.append(
-                (ref_id.replace("epsg:", ""), name, binding.default_model)
-            )
+        bindings.append((ref_id, binding))
 
-    click.secho("\n🌊 Supported Tidal Surfaces (NOAA VDatum):", fg="cyan", bold=True)
-    for ref_id, name in sorted(tidal_surfaces):
-        click.echo(f"  {ref_id:<12} : {name:<30}")
+    header = (
+        "  REFERENCE        ENGINE          PROVIDER       NATIVE FRAME   DEFAULT MODEL"
+    )
+    click.secho(f"\n {header}", fg="cyan", bold=True)
+    click.echo("-" * len(header))
+    for ref_id, binding in sorted(bindings):
+        click.echo(
+            f"  {ref_id:<16} {binding.engine:<16} {binding.provider:<16} {binding.native_frame:<16} {binding.default_model or '-'}"
+        )
 
-    click.secho("\n🛰️  Global Ocean Proxies (FES2014 / DTU25):", fg="cyan", bold=True)
-    for ref_id, name in sorted(global_models):
-        click.echo(f"  {ref_id:<12} : {name:<30}")
 
-    click.secho("\n🌐 Ellipsoidal / Frame Datums (HTDP Hubs):", fg="cyan", bold=True)
+@list_group.command("frames", cls=FetchezMainCommand)
+def frames() -> None:
+    """List reference frames available to HTDP."""
+
+    bindings = []
+    for ref_id, binding in OPERATION_BINDINGS.items():
+        ref_vert_obj = parse_reference(ref_id).vertical
+        name = ref_vert_obj.name if ref_vert_obj else "Unknown"
+        bindings.append((ref_id, name, binding))
+
+    header = "  CRS         HTDP ID   NAME                        REFERENCE EPOCH"
+    click.secho(f"\n {header}", fg="cyan", bold=True)
+    click.echo("-" * len(header))
     for epsg_str, htdp_binding in HTDP_FRAME_BINDINGS.items():
         epsg_code = epsg_str.split(":")[1]
         click.echo(
-            f"  {epsg_code:<12} : {htdp_binding.name:<30} (Epoch: {htdp_binding.reference_epoch})"
+            f"  {epsg_code:<12} {htdp_binding.htdp_id:<8} {htdp_binding.name:<30} {htdp_binding.reference_epoch}"
         )
 
-    click.secho("\n🏔️  Orthometric / Geoid-Based (EPSG):", fg="cyan", bold=True)
-    for epsg_code, name, default_geoid in sorted(geoid_epsgs):
-        geoid_str = default_geoid.replace("geoid:", "") if default_geoid else "None"
-        click.echo(f"  {epsg_code:<12} : {name:<30} (Default Geoid: {geoid_str})")
 
-    click.secho("\n🌍 Available Geoids (via PROJ):", fg="cyan", bold=True)
-    click.echo("  g2018, g2012b, geoid09")
+@list_group.command("geoids", cls=FetchezMainCommand)
+def geoids() -> None:
+    """List geoid models used by registered bindings."""
 
-    # ---> HIERARCHY DOCUMENTATION <---
-    click.secho(
-        "\n🔄 Dynamic Fallback Hierarchy (Coastal/Tidal):", fg="magenta", bold=True
-    )
-    click.echo("  1. NOAA VDatum       : High-res regional hydrodynamics (USA Base).")
-    click.echo(
-        "  2. FES2014 / Global  : Satellite altimetry proxy for offshore/international."
-    )
-    click.echo(
-        "  3. Tide Station RBF  : Live CO-OPS splines (Activated via --use-stations)."
-    )
-    click.echo(
-        "  4. Constant Offset   : Safety fallback for sparse coverage (< 3 stations)."
-    )
-    click.echo("  5. Inland Decay      : Coast-aware physical distance tidal decay.")
+    geoids: dict[Any, Any] = {}
+    for ref_id, binding in OPERATION_BINDINGS.items():
+        if ref_id.startswith("epsg:") and binding.engine == "proj":
+            geoids.setdefault(
+                binding.default_model,
+                {"provider": set(), "notes": []},
+            )
+            providers[binding.provider]["engines"].add(binding.provider)
+            providers[binding.provider]["references"].append(str(ref_id))
+
+    header = "  MODEL           PROVIDER     DEFAULT FOR"
+    click.secho(f"\n {header}", fg="cyan", bold=True)
+    click.echo("-" * len(header))
+
+    for key in geoids:
+        click.echo(
+            f"  {key:<16} {geoids[key]['provider']:<12} {','.join(geoids[key]['notes'])}"
+        )
+
+
+@list_group.command("providers", cls=FetchezMainCommand)
+def providers() -> None:
+    """List transformation data/model providers."""
+
+    providers: dict[Any, Any] = {}
+    for ref_id, binding in OPERATION_BINDINGS.items():
+        providers.setdefault(
+            binding.provider,
+            {"engines": set(), "references": []},
+        )
+        providers[binding.provider]["engines"].add(binding.engine)
+        providers[binding.provider]["references"].append(str(ref_id))
+
+    header = "  PROVIDER           ENGINE TYPES     USED BY"
+    click.secho(f"\n {header}", fg="cyan", bold=True)
+    click.echo("-" * len(header))
+
+    for key in providers:
+        engines = list(set(providers[key].get("engine", [])))
+        notes: list = providers[key]["references"]
+        click.echo(f"  {key:<18} {','.join(engines):<16} {','.join(notes)}")
