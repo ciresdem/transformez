@@ -63,7 +63,7 @@ def install_htdp(
 
 @htdp_group.command("run", cls=FetchezMainCommand)
 @click.option("--control", help="input control file, if omitted, run interactively")
-def run_htpd(control: Optional[Any]) -> None:
+def run_htdp(control: Optional[Any]) -> None:
     """Run the installed NGS HTDP executable."""
 
     from transformez.htdp import HTDP
