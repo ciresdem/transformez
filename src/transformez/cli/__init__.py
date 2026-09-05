@@ -80,3 +80,6 @@ transformez_cli.add_command(plan)
 transformez_cli.add_command(prefetch)
 transformez_cli.add_command(htdp_group, name="htdp")
 transformez_cli.add_command(vdatum_group, name="vdatum")
+
+if __name__ == "__main__":
+    transformez_cli()

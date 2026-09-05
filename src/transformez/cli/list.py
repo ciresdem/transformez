@@ -14,6 +14,12 @@ import click
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
 
 from transformez.reference.parser import parse_reference
+from transformez.reference.bindings import (
+    CUSTOM_VERTICAL_REFERENCES,
+    OPERATION_BINDINGS,
+    HTDP_FRAME_BINDINGS,
+)
+from transformez.reference.types import VerticalKind
 
 
 @click.group(cls=FetchezMainGroup, name="list", fetchez_commands=["references"])
@@ -27,13 +33,6 @@ def list_group() -> None:
 @list_group.command("references", cls=FetchezMainCommand)
 def list_references() -> None:
     """List all supported vertical datums, EPSG codes, and geoids."""
-
-    from transformez.reference.bindings import (
-        CUSTOM_VERTICAL_REFERENCES,
-        OPERATION_BINDINGS,
-        HTDP_FRAME_BINDINGS,
-    )
-    from transformez.reference.types import VerticalKind
 
     tidal_surfaces = []
     global_models = []
