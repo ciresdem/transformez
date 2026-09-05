@@ -6,7 +6,7 @@ from click.testing import CliRunner
 from transformez.cli import transformez_cli
 
 # CMD will run Transformez
-CMD = [sys.executable, "-m", "transformez.cli"]
+CMD = [sys.executable, "-m", "transformez.cli.__init__"]
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def test_cli_base_help(runner):
 
     assert result.exit_code == 0
     assert (
-        "Build vertical datum shift grids and transform elevation rasters."
+        "Build vertical datum shift grids and transform elevation data."
         in result.output
     )
 
@@ -32,6 +32,7 @@ def test_cli_base_help(runner):
         "shift",
         "list",
         "prefetch",
+        "plan",
         "htdp",
         "vdatum",
     ]
@@ -64,11 +65,15 @@ def test_version():
 
 
 def test_list_modules():
-    """Can we list datums without crashing?"""
+    """Can we list references without crashing?"""
 
-    result = run_transformez(["list"])
+    result = run_transformez(["list", "references"])
     assert result.returncode == 0
-    assert "lat" in result.stdout
+    assert "global:lat" in result.stdout
     assert "mllw" in result.stdout
     assert "NAVD88" in result.stdout
     assert "g2018" in result.stdout
+
+
+if __name__ == "__main__":
+    transformez_cli()
