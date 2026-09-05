@@ -108,7 +108,7 @@ class Vdatum:
             self.vdatum_locate_jar()
         if self.jar is not None:
             out, _ = utils.run_cmd(f"java -jar {self.jar} -")  # , verbose=self.verbose)
-            for i in out.decode("utf-8").split("\n"):
+            for i in out.split("\n"):
                 if "- v" in i.strip():
                     return i.strip().split("v")[-1]
         return None
