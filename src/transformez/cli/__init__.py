@@ -20,7 +20,6 @@ from .build import build
 from .shift import transform_raster
 from .list import list_group
 
-# from .info import info
 from .plan import plan
 from .prefetch import prefetch
 from .htdp import htdp_group
@@ -29,7 +28,7 @@ from .vdatum import vdatum_group
 
 TRANSFORMEZ_COMMANDS = {
     "Execution": ["build", "shift", "prefetch"],
-    "Discovery": ["list", "info", "plan"],
+    "Discovery": ["list", "plan"],
     "External": ["htdp", "vdatum"],
 }
 
@@ -75,7 +74,6 @@ def transformez_cli(verbose: bool, quiet: bool) -> None:
 transformez_cli.add_command(build)
 transformez_cli.add_command(transform_raster, name="shift")
 transformez_cli.add_command(list_group, name="list")
-# transformez_cli.add_command(info)
 transformez_cli.add_command(plan)
 transformez_cli.add_command(prefetch)
 transformez_cli.add_command(htdp_group, name="htdp")
