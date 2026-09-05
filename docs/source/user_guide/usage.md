@@ -7,23 +7,16 @@
 ```bash
 # Transform MLLW to WGS84 Ellipsoid in Norton Sound, AK
 
-transformez grid -R -166/-164/63/64 -E 1s -I mllw -O 4979
+transformez build -R -166/-164/63/64 -E 1s -I vdatum:mllw -O epsg:4979
 ```
 
 **Transform a raster directly.** Transformez reads the bounds/resolution from the file.
 
 ```bash
-transformez raster my_dem.tif \
-    -I 5703 -O mhw \
+transformez shift my_dem.tif \
+    -I epsg:5703 -O vdatum:mhw \
     --decay-distance 5000 \
     --buffer-distance 250
-```
-
-**Integrate directly into your fetchez pipeline.**
-
-```bash
-# Download GEBCO and shift EGM96 to WGS84 on the fly
-fetchez gebco ... --hook transformez:datum_in=5773,datum_out=4979
 ```
 
 > ⚠️ `--decay-pixels` is retained for backward compatibility. New workflows should use `--decay-distance`, which defines the inland transition in physical meters and is independent of raster resolution.
@@ -90,7 +83,7 @@ import transformez
 shift_array = transformez.generate_grid(
     region=[80, 85, 10, 15],  # [West, East, South, North]
     increment="3s",           # Grid resolution
-    datum_in="mllw",
+    datum_in="vdatum:mllw",   # VDatums mllw realization
     datum_out="4979",         # WGS84 Ellipsoid
     out_fn="india_shift.tif"  # Optional: Save to disk
 )
@@ -101,9 +94,9 @@ shift_array = transformez.generate_grid(
 # Applies the datum shift directly to a DEM and saves the result.
 
 out_file = transformez.transform_raster(
-    input_raster="my_dem_mllw.tif",
-    datum_in="mllw",
-    datum_out="5703:g2012b",  # NAVD88 using specific GEOID12B
+    input_raster="my_dem_lat.tif",
+    datum_in="global:lat",
+    datum_out="5703:g2012b",            # NAVD88 using specific GEOID12B
     extrapolate_inland=False,           # For infinite inland extrapolation (Modeling)
     output_raster="my_dem_navd88.tif"
 )
@@ -117,9 +110,9 @@ By default, Transformez decays tidal transformations inland using physical dista
 Some tsunami, storm-surge, and inundation workflows instead require the coastal transformation to continue across all terrain that may become wetted during the simulation. For those cases, disable inland decay with:
 
 ```bash
-transformez raster my_coastal_dem.tif \
-    -I 5703 -O mhw \
+transformez shift my_coastal_dem.tif \
+    -I epsg:5703 -O vdatum:mhw \
     --extrapolate-inland
 ```
 
-`--decay-pixels` remains available for backward compatibility but is deprecated for new workflows.x
+`--decay-pixels` remains available for backward compatibility but is deprecated for new workflows.
