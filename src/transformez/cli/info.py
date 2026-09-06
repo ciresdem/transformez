@@ -44,10 +44,26 @@ def reference(ref_id) -> None:
     """Inspect a vertical reference."""
 
     try:
-        parsed_ref = parse_reference(ref_id)
+        if Path(ref_id).exists():
+            import rasterio
+            from pyproj import CRS
+
+            with rasterio.open(ref_id) as src:
+                native_crs = src.crs
+
+            native_pyproj_crs = (
+                CRS.from_user_input(native_crs) if native_crs is not None else None
+            )
+
+            parsed_ref = (
+                parse_reference(native_pyproj_crs)
+                if native_pyproj_crs is not None
+                else None
+            )
+        else:
+            parsed_ref = parse_reference(ref_id)
+
         parsed_vertical = parsed_ref.vertical
-        resolved_ref = resolve_reference(parsed_ref)
-        resolved_vertical = resolved_ref.vertical
 
         click.secho("\n Reference:", fg="cyan", bold=True)
         click.echo("-" * 12)
@@ -59,6 +75,8 @@ def reference(ref_id) -> None:
             click.echo(f"  {'Axis Direction:':<18} {parsed_vertical.axis_direction}")
             click.echo(f"  {'Units:':<18} {parsed_vertical.unit_name}")
 
+            resolved_ref = resolve_reference(parsed_ref)
+            resolved_vertical = resolved_ref.vertical
             if resolved_vertical is not None:
                 resolved_binding = resolved_vertical.binding
                 if resolved_binding is not None:
