@@ -64,7 +64,9 @@ Legacy Transformez/CUDEM geoid-qualified strings remain supported during the ref
 EPSG:4326+5703+geoid:g2012b
 ```
 
-For new code, prefer explicit EPSG and namespaced reference identifiers where practical.
+> ⚠️ For new workflows, use explicit namespaced or authority-qualified references.
+>Legacy shorthand remains accepted for compatibility but may emit deprecation warnings.
+>For new code, prefer explicit EPSG and namespaced reference identifiers where practical.
 
 
 ## Python API:
@@ -102,6 +104,48 @@ out_file = transformez.transform_raster(
 )
 ```
 
+### Building a `ShiftGrid` or an shift array
+
+`transformez.generate_grid(...)`
+
+is a convenient array-oriented API, whereas:
+
+`build_shift_grid(...)`
+
+is a richer object-oriented API.
+
+`ShiftGrid` carries the array, region, CRS, affine transform, source and target references, epochs, provenance, generation key, uncertainty, and cache information, and can write/reproject itself.
+
+> Use `generate_grid()` when you only need shift values.
+> Use `build_shift_grid()` when you need a georeferenced, inspectable transformation product.
+
+```python
+grid = build_shift_grid(...)
+
+grid.array
+grid.crs
+grid.transform
+grid.source_reference
+grid.target_reference
+grid.provenance
+
+grid.write(...)
+grid.reproject(...)
+```
+
+### Building Transformation Components
+`build_components()` parses complete source/destination references and returns a horizontal transformer plus a vertical `ShiftGrid`.
+
+```python
+components = transformez.build_components(
+    "EPSG:4326+5703",
+    "EPSG:32610+4979",
+    region=region,
+)
+
+components.horizontal
+components.vertical
+```
 
 ## Hydrodynamic & Tsunami Modeling
 

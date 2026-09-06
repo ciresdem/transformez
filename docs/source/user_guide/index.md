@@ -10,5 +10,6 @@ usage
 cli_usage
 references
 methodology
+providers
 validation
 ```

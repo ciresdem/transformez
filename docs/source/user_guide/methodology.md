@@ -5,6 +5,30 @@ The Transformez engine computes optimal geodetic pathways on the fly.
 Here is a look under the hood at how Transformez handles dynamic vertical transformations.
 
 ```mermaid
+flowchart LR
+    A[User reference] --> B[Reference parser]
+    B --> C[Resolved reference]
+    C --> D[Transformation planner]
+    D --> E[Grid operation]
+    D --> F[Frame operation]
+    E --> G[Provider / Model]
+    F --> H[HTDP]
+    G --> I[ShiftGrid]
+    H --> I
+```
+
+## Reference Resolution
+Before a transformation path is constructed, Transformez resolves user-supplied coordinate-reference inputs into separate horizontal and vertical components.
+
+Standard CRS definitions are resolved through PROJ, while Transformez-specific tidal and model surfaces use explicit namespaced identifiers such as `vdatum:mllw` and `global:lat`. Legacy shorthand names are normalized to these references for backward compatibility.
+
+Reference resolution is separate from transformation execution, where parsing determines what a reference represents and the transformation engine determines how to connect the resolved source and destination through the appropriate geodetic models and hubs.
+
+
+## The Dynamic Hub-and-Spoke Model
+Transformez routes complex, multi-step vertical conversions (e.g., moving from a local tidal datum directly to a global geoid) by using an autonomous **"Hub-and-Spoke"** system
+
+```mermaid
 flowchart TD
     %% Define Styles
     classDef hub fill:#1f77b4,stroke:#fff,stroke-width:2px,color:#fff,font-weight:bold
@@ -38,19 +62,6 @@ flowchart TD
 | MLLW       | NAVD88   | NAD83    | Positive (↓ to ↑)       |
 | WGS84      | MLLW     | WGS84    | Negative (↑ to ↓)       |
 | LAT        | MHHW     | WGS84    | Depends on location     |
-
-
-## Reference Resolution
-
-Before a transformation path is constructed, Transformez resolves user-supplied coordinate-reference inputs into separate horizontal and vertical components.
-
-Standard CRS definitions are resolved through PROJ, while Transformez-specific tidal and model surfaces use explicit namespaced identifiers such as `vdatum:mllw` and `global:lat`. Legacy shorthand names are normalized to these references for backward compatibility.
-
-Reference resolution is separate from transformation execution, where parsing determines what a reference represents and the transformation engine determines how to connect the resolved source and destination through the appropriate geodetic models and hubs.
-
-
-## The Dynamic Hub-and-Spoke Model
-Transformez routes complex, multi-step vertical conversions (e.g., moving from a local tidal datum directly to a global geoid) by using an autonomous **"Hub-and-Spoke"** system
 
 * **Native Ellipsoid Hubs:** Every transformation is mathematically routed through a central geodetic frame (the "Hub").
 

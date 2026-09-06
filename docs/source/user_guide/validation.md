@@ -1,4 +1,4 @@
-# Validation & Accuracy
+# 🏹 Validation & Accuracy
 
 Transformez is validated at several different levels because no single benchmark can fully describe the behavior of a coastal vertical-datum transformation engine. The tests below separate provider/grid accuracy, production coastal behavior, global-model agreement, and external HTDP integration.
 
