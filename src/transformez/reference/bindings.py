@@ -248,6 +248,38 @@ OPERATION_BINDINGS = {
         native_frame="epsg:6321",
         default_model="CGG2013",
     ),
+    # Temporary! These are retained for backward compatibility, but will be removed.
+    # These are all ambiguous tidal epsg codes. There is no valid way to
+    # operate on them without more context, which can be given from downstream
+    # applications, which should be the ones deciding what it is supposed to mean
+    # as far as it's vertical surface goes.
+    "epsg:5866": OperationBinding(
+        reference_id="epsg:5866",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="mllw",
+        native_frame="EPSG:6319",
+        default_model="g2018",
+        global_proxy="global:lat",
+    ),
+    "epsg:5869": OperationBinding(
+        reference_id="epsg:5869",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="mhhm",
+        native_frame="EPSG:6319",
+        default_model="g2018",
+        global_proxy="global:hat",
+    ),
+    "epsg:5714": OperationBinding(
+        reference_id="epsg:5714",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="msl",
+        native_frame="EPSG:6319",
+        default_model="g2018",
+        global_proxy="global:mss",
+    ),
 }
 
 
