@@ -8,7 +8,8 @@ Welcome to the Transformez user guide! Here you will find everything you need to
 installation
 usage
 cli_usage
+references
 methodology
-supported_datums
+providers
 validation
 ```

@@ -2,9 +2,7 @@
 
 **Global vertical datum transformations, simplified**
 
-*Transformez Les Données*
-
-**Transformez** is a standalone Python engine for converting geospatial data between vertical datums (e.g., `MLLW` ↔ `NAVD88` ↔ `Ellipsoid`).
+**Transformez** builds and applies vertical transformations across geodetic, tidal, and model-based height references, from local datums to global surfaces.
 
 Transformez is part of the [Continuous DEMs Project](https://continuous-dems.readthedocs.io/), an ecosystem of tools for modern, continuous digital elevation model generation.
 
@@ -25,7 +23,7 @@ Transformez is part of the [Continuous DEMs Project](https://continuous-dems.rea
 *(Above: A generated vertical shift grid transforming MLLW to NAVD88)*
 
 ```bash
-transformez grid -R loc:"new orleans" -E 3s -I mllw -O 5703
+transformez build -R loc:"new orleans" -E 3s -I mllw -O 5703
 ```
 
 ## Installation:
@@ -40,16 +38,16 @@ pip install transformez
 
 ## Command Line Interface:
 
-**Generate a vertical shift grid for anywhere on Earth.**
+**Build a vertical shift grid anywhere on Earth.**
 
 ```bash
-transformez build -R -166/-164/63/64 -E 1s -I mllw -O 4979
+transformez build -R -166/-164/63/64 -E 1s -I vdatum:mllw -O epsg:4979
 ```
 
 **Transform a raster directly.** Transformez reads the bounds/resolution from the file.
 
 ```bash
-transformez shift my_dem.tif -I mllw -O 5703
+transformez shift my_dem.tif -I vdatum:mllw -O epsg:5703
 ```
 
 ## Python API
@@ -65,8 +63,8 @@ import transformez
 shift_array = transformez.generate_grid(
     region=[80, 85, 10, 15],  # [West, East, South, North]
     increment="3s",           # Grid resolution
-    datum_in="mllw",
-    datum_out="4979",         # WGS84 Ellipsoid
+    datum_in="vdatum:mllw",   # Vdatums mllw realization.
+    datum_out="epsg:4979",    # WGS84 Ellipsoid
     out_fn="india_shift.tif"  # Optional: Save to disk
 )
 
@@ -97,7 +95,7 @@ out_file = transformez.transform_raster(
     input_raster="my_dem_mllw.tif",
     datum_in="vdatum:mllw",
     datum_out="5703+geoid:g2012b",  # NAVD88 using specific GEOID12B
-    decay_pixels=0,           # Set to 0 for infinite inland extrapolation (Modeling)
+    decay_pixels=0,                 # Set to 0 for infinite inland extrapolation (Modeling)
     output_raster="my_dem_navd88.tif"
 )
 ```
