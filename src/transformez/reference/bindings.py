@@ -108,6 +108,35 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    # Temporary! These are retained for backward compatibility, but will be removed.
+    # These are all ambiguous tidal epsg codes. There is no valid way to
+    # operate on them without more context, which can be given from downstream
+    # applications, which should be the ones deciding what it is supposed to mean
+    # as far as it's vertical surface goes.
+    "epsg:5866": VerticalReference(
+        id="epsg:5866",
+        name="Mean Lower Low Water (Generic)",
+        kind=VerticalKind.TIDAL_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:5869": VerticalReference(
+        id="epsg:5869",
+        name="Mean Higher High Water (Generic)",
+        kind=VerticalKind.TIDAL_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "epsg:5714": VerticalReference(
+        id="epsg:5714",
+        name="Mean Lower Low Water (Generic)",
+        kind=VerticalKind.TIDAL_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
 }
 
 
