@@ -97,7 +97,10 @@ def build(
     )
     click.echo(f"   Shift: {input_datum} ➔ {output_datum} @ {increment}")
 
-    out_fn = out or f"shift_{input_datum}_to_{output_datum.replace(':', '_')}.tif"
+    out_fn = (
+        out
+        or f"shift_{input_datum.replace(':', '_')}_to_{output_datum.replace(':', '_')}.tif"
+    )
 
     result = api.generate_grid(
         region=region,
