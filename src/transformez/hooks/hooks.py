@@ -16,10 +16,8 @@ import logging
 
 from fetchez.hooks import FetchHook
 from fetchez import utils
-from fetchez import spatial
 
-from .transform import VerticalTransform
-from .grid_engine import GridWriter
+from transformez.generations import build_shift_grid
 
 logger = logging.getLogger(__name__)
 
@@ -41,111 +39,73 @@ class TransformezHook(FetchHook):
 
     def __init__(
         self,
-        datum_in="5703",
-        datum_out="6319",
+        src_datum="5703",
+        dst_datum="4979",
         increment="3s",
-        output_grid="shift.tif",
+        output_name=None,
+        epoch_in="2010.0",
+        epoch_out="2010.0",
+        decay_pixels=100,
+        decay_distance_m=None,
+        buffer_distance_m=None,
+        max_vdatum_extension_m=None,
+        extrapolate_inland=False,
+        use_stations=False,
         keep_grid=True,
         apply=False,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.datum_in = datum_in
-        self.datum_out = datum_out
+        super().__init__(name="transformez", **kwargs)
+        self.src_datum = src_datum
+        self.dst_datum = dst_datum
         self.increment = increment
-        self.output_grid = Path(output_grid)
+        self.output_name = output_name
+        self.epoch_in = epoch_in
+        self.epcoh_out = epoch_out
+        self.decay_pixels = decay_pixels
+        self.decay_distance_m = decay_distance_m
+        self.buffer_distance_m = buffer_distance_m
+        self.max_vdatum_extension_m = max_vdatum_extension_m
+        self.extrapolate_inland = extrapolate_inland
+        self.use_stations = use_stations
         self.keep_grid = utils.str2bool(keep_grid)
         self.apply = utils.str2bool(apply)
 
+        s_name = str(self.src_datum).replace(":", "_")
+        d_name = str(self.dst_datum).replace(":", "_")
+        w, e, s, n = self.region
+        self.dst_fn = Path(self._outdir) / f"shift_{s_name}_to_{d_name}_{w}_{s}.tif"
+
     def run(self, entries):
-        if not entries:
-            return entries
+        for mod, entry in entries:
+            region = getattr(mod, "region", None)
+            if not region:
+                logger.warning(
+                    "Module has no region defined. Cannot generate shift grid in PRE stage."
+                )
+                continue
 
-        module = entries[0][0]
-        region = getattr(module, "region", None)
-        if not region:
-            logger.warning(
-                "Module has no region defined. Cannot generate shift grid in PRE stage."
+            logger.info(f"Generating vertical shift grid for region: {region}")
+            shift_grid = build_shift_grid(
+                self.region,
+                self.increment,
+                self.src_datum,
+                self.out_datum,
+                self.epoch_in,
+                self.epoch_out,
+                self.decay_pixels,
+                self.decay_distance_m,
+                self.buffer_distance_m or 0.0,
+                self.max_vdatum_extension_m,
+                self.extrapolate_inland,
+                self._outdir,
+                self.use_stations,
             )
-            return entries
+            shift_grid.write(self.dst_fn)
 
-        logger.info(f"Generating vertical shift grid for region: {region}")
-        self._generate_grid(region)
-
-        for _mod, entry in entries:
-            entry["shift_grid_path"] = self.output_grid
+            entry["shift_grid_path"] = self.dst_fn
             entry["vdatum_in"] = self.datum_in
             entry["vdatum_out"] = self.datum_out
             entry["transformed"] = False
 
         return entries
-
-    def _run_file(self, entries):
-        """Apply the shift grid to specific files."""
-
-        if not self.output_grid.exists():
-            logger.warning(
-                f"Shift grid {self.output_grid} not found. Skipping transform."
-            )
-            return entries
-
-        for _mod, entry in entries:
-            if entry.get("status") != 0:
-                continue
-
-            filepath = Path(entry["dst_fn"])
-
-            # Enrich Metadata
-            entry["shift_grid_path"] = self.output_grid
-            entry["vdatum_in"] = self.datum_in
-            entry["vdatum_out"] = self.datum_out
-            entry["transformed"] = False
-
-            if not self.apply:
-                continue
-
-            ext = filepath.suffix.lower()
-            transformed_path = None
-
-            if ext in [".tif", ".gtx"]:
-                transformed_path = self._apply_raster(filepath, self.output_grid)
-            elif ext in [".laz", ".las", "xyz"]:
-                transformed_path = self._apply_pointcloud(filepath, self.output_grid)
-
-            if transformed_path:
-                entry["dst_fn"] = transformed_path
-                entry["transformed"] = True
-
-        return entries
-
-    def _generate_grid(self, region):
-        """Core logic to call VerticalTransform."""
-
-        nx, ny = spatial.region_and_inc_to_width_height(region, self.increment)
-
-        vt = VerticalTransform(
-            extent=region,
-            nx=nx,
-            ny=ny,
-            epsg_in=self.datum_in,
-            epsg_out=self.datum_out,
-            verbose=False,
-        )
-
-        shift_array, _ = vt._vertical_transform(vt.epsg_in, vt.epsg_out)
-
-        if shift_array is None:
-            logger.error("Transformation failed to generate a grid.")
-        else:
-            GridWriter.write(self.output_grid, shift_array, region.to_list())
-            logger.info(f"Saved shift grid to {self.output_grid}")
-
-    def _apply_raster(self, src, grid):
-        """Placeholder for GDAL warp/calc logic."""
-
-        pass
-
-    def _apply_pointcloud(self, src, grid):
-        """Placeholder for PDAL logic."""
-
-        pass
