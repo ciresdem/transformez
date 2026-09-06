@@ -63,61 +63,67 @@ def reference(ref_id) -> None:
         else:
             parsed_ref = parse_reference(ref_id)
 
-        parsed_vertical = parsed_ref.vertical
+        if parsed_ref is not None:
+            parsed_vertical = parsed_ref.vertical
 
-        click.secho("\n Reference:", fg="cyan", bold=True)
-        click.echo("-" * 12)
+            click.secho("\n Reference:", fg="cyan", bold=True)
+            click.echo("-" * 12)
 
-        click.echo(f"  {'ID:':<18} {parsed_ref.source_text}")
-        if parsed_vertical is not None:
-            click.echo(f"  {'Name:':<18} {parsed_vertical.name}")
-            click.echo(f"  {'Kind:':<18} {parsed_vertical.kind}")
-            click.echo(f"  {'Axis Direction:':<18} {parsed_vertical.axis_direction}")
-            click.echo(f"  {'Units:':<18} {parsed_vertical.unit_name}")
+            click.echo(f"  {'ID:':<18} {parsed_ref.source_text}")
 
-            resolved_ref = resolve_reference(parsed_ref)
-            resolved_vertical = resolved_ref.vertical
-            if resolved_vertical is not None:
-                resolved_binding = resolved_vertical.binding
-                if resolved_binding is not None:
-                    click.secho("\n Execution:", fg="cyan", bold=True)
-                    click.echo("-" * 12)
+            if parsed_vertical is not None:
+                click.echo(f"  {'Name:':<18} {parsed_vertical.name}")
+                click.echo(f"  {'Kind:':<18} {parsed_vertical.kind}")
+                click.echo(
+                    f"  {'Axis Direction:':<18} {parsed_vertical.axis_direction}"
+                )
+                click.echo(f"  {'Units:':<18} {parsed_vertical.unit_name}")
 
-                    click.echo(f"  {'Engine:':<18} {resolved_binding.engine}")
-                    click.echo(f"  {'Provider:':<18} {resolved_binding.provider}")
-                    click.echo(
-                        f"  {'Provider Datum:':<18} {resolved_binding.provider_datum}"
-                    )
-                    click.echo(
-                        f"  {'Native Frame:':<18} {resolved_binding.native_frame}"
-                    )
-                    click.echo(
-                        f"  {'Default Model:':<18} {resolved_binding.default_model}"
-                    )
-                    click.echo(
-                        f"  {'Global Proxy:':<18} {resolved_binding.global_proxy}"
-                    )
-
-                    resolved_frame_binding = resolved_vertical.frame_binding
-                    if resolved_frame_binding is not None:
-                        click.secho("\n Frame:", fg="cyan", bold=True)
+                resolved_ref = resolve_reference(parsed_ref)
+                resolved_vertical = resolved_ref.vertical
+                if resolved_vertical is not None:
+                    resolved_binding = resolved_vertical.binding
+                    if resolved_binding is not None:
+                        click.secho("\n Execution:", fg="cyan", bold=True)
                         click.echo("-" * 12)
 
-                        click.echo(f"  {'Name:':<18} {resolved_frame_binding.name}")
+                        click.echo(f"  {'Engine:':<18} {resolved_binding.engine}")
+                        click.echo(f"  {'Provider:':<18} {resolved_binding.provider}")
                         click.echo(
-                            f"  {'HTDP ID:':<18} {resolved_frame_binding.htdp_id}"
+                            f"  {'Provider Datum:':<18} {resolved_binding.provider_datum}"
                         )
                         click.echo(
-                            f"  {'Reference Epoch:':<18} {resolved_frame_binding.reference_epoch}"
+                            f"  {'Native Frame:':<18} {resolved_binding.native_frame}"
                         )
+                        click.echo(
+                            f"  {'Default Model:':<18} {resolved_binding.default_model}"
+                        )
+                        click.echo(
+                            f"  {'Global Proxy:':<18} {resolved_binding.global_proxy}"
+                        )
+
+                        resolved_frame_binding = resolved_vertical.frame_binding
+                        if resolved_frame_binding is not None:
+                            click.secho("\n Frame:", fg="cyan", bold=True)
+                            click.echo("-" * 12)
+
+                            click.echo(f"  {'Name:':<18} {resolved_frame_binding.name}")
+                            click.echo(
+                                f"  {'HTDP ID:':<18} {resolved_frame_binding.htdp_id}"
+                            )
+                            click.echo(
+                                f"  {'Reference Epoch:':<18} {resolved_frame_binding.reference_epoch}"
+                            )
+                        else:
+                            click.echo(f"  No frame binding available for {ref_id}")
                     else:
-                        click.echo(f"  No frame binding available for {ref_id}")
+                        click.echo(f"  No operation binding available for {ref_id}")
                 else:
-                    click.echo(f"  No operation binding available for {ref_id}")
+                    click.echo(f"  No vertical reference available for {ref_id}")
             else:
                 click.echo(f"  No vertical reference available for {ref_id}")
         else:
-            click.echo(f"  No vertical reference available for {ref_id}")
+            click.echo(f"  Could not parse {ref_id}")
 
     except InvalidReferenceError:
         click.echo(f"  {ref_id} is unsupported by transformez")
