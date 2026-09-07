@@ -150,7 +150,7 @@ class ShiftGrid:
         )
 
     def write(self, filename: str | Path | None = None, **kwargs):
-        from .grid_engine import GridWriter
+        from transformez.grid.io import GridWriter
 
         path = Path(filename) if filename is not None else self.storage_path()
         logger.info(f"Saving shift grid to {path}...")
