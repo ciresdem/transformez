@@ -59,7 +59,7 @@ docs = [
 ]
 
 [project.entry-points."fetchez.modules"]
-transformez_modules = "transformez.fetchez.modules"
+transformez_modules = "transformez.integrations.fetchez.modules"
 
 [project.scripts]
 transformez = 'transformez.cli:transformez_cli'
