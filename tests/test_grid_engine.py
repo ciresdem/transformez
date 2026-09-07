@@ -2,7 +2,7 @@
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
-from transformez.grid_engine import GridEngine
+from transformez.grid.engine import GridEngine
 
 
 def test_smart_blend_basic():

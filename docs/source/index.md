@@ -70,7 +70,7 @@ shift_array = transformez.generate_grid(
 
 
 # Use generation.build_shift_grid to access the ShiftGrid object directly
-from transformez.generation import build_shift_grid
+from transformez.grid.shift import build_shift_grid
 
 shift = build_shift_grid(
     region=[-124.1, -124.0, 44.5, 44.6],

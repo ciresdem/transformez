@@ -5,7 +5,7 @@ import rasterio
 from rasterio.transform import from_bounds
 
 from fetchez.spatial import Region
-from transformez.grid_engine import GridEngine
+from transformez.grid.engine import GridEngine
 
 
 def _signed_coast(ny: int = 10, nx: int = 10) -> np.ndarray:

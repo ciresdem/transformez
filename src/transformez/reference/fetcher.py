@@ -24,7 +24,7 @@ import numpy as np
 import fetchez.api
 import fetchez.utils
 
-from transformez.grid_engine import (
+from transformez.grid.engine import (
     CoastalContext,
     GridEngine,
     GridGen,

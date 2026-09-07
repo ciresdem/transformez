@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """
-transformez.generation
+transformez.grid.shift
 ~~~~~~~~~~~~~
 
-This is the inroad into transform.py. Generate a shift grid and
-return a ShiftGrid object to do with what you will.
+Generate a shift grid and return a ShiftGrid object to do with
+what you will.
 
 :copyright: (c) 2010-2026 Regents of the University of Colorado
 :license: MIT, see LICENSE for more details.
@@ -25,13 +25,12 @@ from pyproj import CRS
 
 from rasterio.transform import from_bounds, Affine
 
-from .reference.types import ParsedReference, ReferenceInput
-from .reference.parser import parse_reference
-
 from fetchez.spatial import parse_region, Region
 from fetchez.utils import str_or, str2inc
 
 from transformez import __version__
+from transformez.reference.types import ParsedReference, ReferenceInput
+from transformez.reference.parser import parse_reference
 
 
 logger = logging.getLogger(__name__)
@@ -101,7 +100,7 @@ class ShiftGrid:
         dst_region=None,
         dst_shape=None,
     ) -> "ShiftGrid":
-        from .grid_engine import GridEngine
+        from transformez.grid.engine import GridEngine
 
         array, transform, region = GridEngine.reproject_grid(
             self.array,
@@ -150,7 +149,7 @@ class ShiftGrid:
         )
 
     def write(self, filename: str | Path | None = None, **kwargs):
-        from .grid_engine import GridWriter
+        from transformez.grid.io import GridWriter
 
         path = Path(filename) if filename is not None else self.storage_path()
         logger.info(f"Saving shift grid to {path}...")
@@ -287,9 +286,9 @@ def build_shift_grid(
         GeneratedGrid, or None if failed.
     """
 
-    from .reference.executor import ExecutionContext, TransformationExecutor
-    from .reference.resolver import resolve_reference
-    from .reference.planner import TransformationPlanner
+    from transformez.reference.executor import ExecutionContext, TransformationExecutor
+    from transformez.reference.resolver import resolve_reference
+    from transformez.reference.planner import TransformationPlanner
 
     src_ref = parse_reference(datum_in)
     dst_ref = parse_reference(datum_out)

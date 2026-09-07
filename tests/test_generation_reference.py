@@ -6,7 +6,7 @@ from pyproj import CRS
 
 from fetchez.spatial import Region
 
-from transformez.generation import build_shift_grid, ShiftGrid
+from transformez.grid.shift import build_shift_grid, ShiftGrid
 from transformez.reference.executor import ExecutionResult
 
 

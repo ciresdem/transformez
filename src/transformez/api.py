@@ -35,11 +35,11 @@ from dataclasses import dataclass
 
 from pyproj import Transformer, CRS
 
-from .grid_engine import GridEngine
-from .utils import RasterQuery, UNITS
-from .reference.types import ReferenceInput
-from .reference.parser import parse_reference
-from .generation import build_shift_grid, ShiftGrid
+from transformez.grid.engine import GridEngine
+from transformez.utils import RasterQuery, UNITS
+from transformez.reference.types import ReferenceInput
+from transformez.reference.parser import parse_reference
+from transformez.grid.shift import ShiftGrid, build_shift_grid
 
 from fetchez.spatial import parse_region, Region
 
@@ -516,14 +516,14 @@ def prefetch_region(
         True if prefetching completed without a fatal error, False otherwise.
     """
 
-    from .reference.bindings import OPERATION_BINDINGS
-    from .reference.fetcher import GridFetcher
-    from .reference.planner import (
+    from transformez.reference.bindings import OPERATION_BINDINGS
+    from transformez.reference.fetcher import GridFetcher
+    from transformez.reference.planner import (
         FrameOperation,
         GridOperation,
         TransformationPlanner,
     )
-    from .reference.resolver import resolve_reference
+    from transformez.reference.resolver import resolve_reference
 
     cache_path = (
         Path(cache_dir) if cache_dir is not None else Path.cwd() / "transformez_cache"
