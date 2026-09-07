@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved fetchez modules and hooks to `/fetchez/...`
 - Moved `GridWriter` into new `/grid/io` module
 - Moved `generation.py` to `/grid/shift` module
+- Moved `grid_engine.py` to `/grid/engine` module
 
 ### Fixed
 - Refactor dist2coast usage to fix a bug that would burn the dist2coast edges onto the raster result. This was due to performing an edt distance transform from the low-res dist2coast raster, treating it as a mask instead of a distance field. Update allows setting the distance by km instead of number of pixels and smooths the 'zero' field to get proper transitions.

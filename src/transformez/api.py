@@ -35,7 +35,7 @@ from dataclasses import dataclass
 
 from pyproj import Transformer, CRS
 
-from transformez.grid_engine import GridEngine
+from transformez.grid.engine import GridEngine
 from transformez.utils import RasterQuery, UNITS
 from transformez.reference.types import ReferenceInput
 from transformez.reference.parser import parse_reference

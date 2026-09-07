@@ -100,7 +100,7 @@ class ShiftGrid:
         dst_region=None,
         dst_shape=None,
     ) -> "ShiftGrid":
-        from transformez.grid_engine import GridEngine
+        from transformez.grid.engine import GridEngine
 
         array, transform, region = GridEngine.reproject_grid(
             self.array,

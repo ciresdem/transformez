@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from fetchez.spatial import Region
-from transformez.grid_engine import GridEngine
+from transformez.grid.engine import GridEngine
 
 
 def _make_signed_coast(ny: int, nx: int, width_m: float = 10_000.0):

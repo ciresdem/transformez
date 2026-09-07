@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-transformez.grid_engine
+transformez.grid.engine
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 Grid compositing utility.
@@ -35,6 +35,7 @@ from pyproj import CRS
 
 from fetchez.spatial import Region, parse_region
 
+from transformez.utils import UNITS
 from transformez.grid.shift import ShiftGrid
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
@@ -608,7 +609,6 @@ class GridEngine:
         z_unit_in: str = "m",
         z_unit_out: str = "m",
     ) -> bool:
-        from .utils import UNITS
 
         factor_in = UNITS.get_unit_factor_m(z_unit_in)
         factor_out = UNITS.get_unit_factor_m(z_unit_out)
