@@ -18,12 +18,13 @@ import subprocess
 from pathlib import Path
 from fetchez.core import Fetch
 
-from . import utils
+from fetchez.utils import remove_glob
+from transformez.utils import run_cmd, cmd_check
 
 logger = logging.getLogger(__name__)
 
 vdatum_cmd = "vdatum.jar -v"
-HAS_VDATUM = utils.cmd_check("vdatum.jar", vdatum_cmd).decode()
+HAS_VDATUM = cmd_check("vdatum.jar", vdatum_cmd).decode()
 
 
 class Vdatum:
@@ -107,7 +108,7 @@ class Vdatum:
         if self.jar is None:
             self.vdatum_locate_jar()
         if self.jar is not None:
-            out, _ = utils.run_cmd(f"java -jar {self.jar} -")  # , verbose=self.verbose)
+            out, _ = run_cmd(f"java -jar {self.jar} -")  # , verbose=self.verbose)
             for i in out.split("\n"):
                 if "- v" in i.strip():
                     return i.strip().split("v")[-1]
@@ -117,7 +118,7 @@ class Vdatum:
         if self.jar is None:
             self.vdatum_locate_jar()
         if self.jar is not None:
-            out, _ = utils.run_cmd(f"java -jar {self.jar} -help")
+            out, _ = run_cmd(f"java -jar {self.jar} -help")
 
         return out
 
@@ -133,7 +134,7 @@ class Vdatum:
                 f"-nodata -pt:{xyz[0]},{xyz[1]},{xyz[2]} {epoch_str}region:{self.region}"
             )
 
-            out, _ = utils.run_cmd(
+            out, _ = run_cmd(
                 (
                     f"java -Djava.awt.headless=false -jar {self.jar} {vdc}",
                 )  # , verbose=False
@@ -153,7 +154,7 @@ class Vdatum:
     def vdatum_clean_result(self):
         """Clean the vdatum 'result' folder."""
 
-        utils.remove_glob(f"{self.result_dir}/*")
+        remove_glob(f"{self.result_dir}/*")
         try:
             os.removedirs(self.result_dir)
         except OSError:
@@ -171,9 +172,7 @@ class Vdatum:
                 f"-nodata -file:txt:{self.delim},{self.xyzl},skip{self.skip}:{src_fn}:{self.result_dir} "
                 f"{epoch_str}region:{self.region}"
             )
-            return utils.run_cmd(
-                f"java -jar {self.jar} {vdc}"
-            )  # , verbose=self.verbose)
+            return run_cmd(f"java -jar {self.jar} {vdc}")  # , verbose=self.verbose)
         else:
             return [], -1
 

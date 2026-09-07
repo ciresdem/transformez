@@ -24,6 +24,8 @@ import zipfile
 import numpy as np
 from typing import Tuple, Optional, Any, Literal
 
+from transformez.reference.bindings import HTDP_FRAME_BINDINGS
+
 logger = logging.getLogger(__name__)
 
 
@@ -103,8 +105,6 @@ class HTDP:
 
     def _htdp_id_from_epsg(self, epsg: int) -> int:
         """Look up HTDP numeric IDs (e.g., NAD83=1, WGS84=10)"""
-
-        from .reference.bindings import HTDP_FRAME_BINDINGS
 
         if f"EPSG:{epsg}" in HTDP_FRAME_BINDINGS.keys():
             binding = HTDP_FRAME_BINDINGS.get(f"EPSG:{epsg}")

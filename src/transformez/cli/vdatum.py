@@ -13,6 +13,7 @@ import click
 from pathlib import Path
 
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
+from transformez.engines.vdatum import install_vdatum_jar, Vdatum
 
 
 # --- VDATUM CLI GROUP ---
@@ -28,8 +29,6 @@ def vdatum_group() -> None:
 @vdatum_group.command("install")
 def install_vdatum() -> None:
     """Download and install the NOAA VDatum software."""
-
-    from transformez.vdatum import install_vdatum_jar
 
     install_vdatum_jar()
 
@@ -60,8 +59,6 @@ def run_vdatum_cli(
 ) -> None:
     """Transform an XYZ file using the local NOAA VDatum engine."""
 
-    from transformez.vdatum import Vdatum
-
     Vdatum(
         ivert=f"{in_datum}:{in_unit}:height",
         overt=f"{out_datum}:{out_unit}:height",
@@ -72,8 +69,6 @@ def run_vdatum_cli(
 @vdatum_group.command("list", cls=FetchezMainCommand)
 def vdatum_list() -> None:
     """Show information reported by the installed VDatum engine."""
-
-    from transformez.vdatum import Vdatum
 
     vd = Vdatum().vdatum_help()
     click.echo(vd)

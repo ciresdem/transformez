@@ -14,7 +14,12 @@ from typing import Optional, Any, Literal
 
 from fetchez.utils import FetchezMainGroup, FetchezMainCommand
 
-from transformez.htdp import DEFAULT_HTDP_VERSION
+from transformez.engines.htdp import (
+    DEFAULT_HTDP_VERSION,
+    HTDP,
+    install_htdp_binary,
+    HTDPInstallError,
+)
 
 
 # --- HTDP CLI GROUP ---
@@ -43,8 +48,6 @@ def install_htdp(
 ) -> None:
     """Download and install the NGS HTDP executable."""
 
-    from transformez.htdp import install_htdp_binary, HTDPInstallError
-
     scope: Literal["project", "user"] = "project" if project else "user"
 
     try:
@@ -65,7 +68,5 @@ def install_htdp(
 @click.option("--control", help="input control file, if omitted, run interactively")
 def run_htdp(control: Optional[Any]) -> None:
     """Run the installed NGS HTDP executable."""
-
-    from transformez.htdp import HTDP
 
     HTDP().run_cmd(control)
