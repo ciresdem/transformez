@@ -16,7 +16,7 @@ import logging
 
 from fetchez import cli
 from fetchez.modules import FetchModule
-from transformez.generations import build_shift_grid
+from transformez.grid.shift import build_shift_grid
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class TransformezMod(FetchModule):
         self.increment = increment
         self.output_name = output_name
         self.epoch_in = epoch_in
-        self.epcoh_out = epoch_out
+        self.epoch_out = epoch_out
         self.decay_pixels = decay_pixels
         self.decay_distance_m = decay_distance_m
         self.buffer_distance_m = buffer_distance_m
@@ -83,7 +83,7 @@ class TransformezMod(FetchModule):
             self.region,
             self.increment,
             self.src_datum,
-            self.out_datum,
+            self.dst_datum,
             self.epoch_in,
             self.epoch_out,
             self.decay_pixels,
