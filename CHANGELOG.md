@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added resolver.py which resolves a parsed reference to obtain the full context of the transformation.
 - Added fetcher.py, ported from transform.py, to allow the use of existing fethcing/compositing for use in transformations.
 - Added CLI commands the help track the progress of porting references from definitions.
+- Added `engine` module.
+- Added `grid` module.
 
 ### Changed
 - Updated CLI options to use new dist2coast km decay and blend options
@@ -40,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored to adhere to ruff PTH rules.
 - Moved htdp and vdatum to /engines
 - Moved fetchez modules and hooks to /fetchez/...
+- Moved GridWriter into new /grid/io module
 
 ### Fixed
 - Refactor dist2coast usage to fix a bug that would burn the dist2coast edges onto the raster result. This was due to performing an edt distance transform from the low-res dist2coast raster, treating it as a mask instead of a distance field. Update allows setting the distance by km instead of number of pixels and smooths the 'zero' field to get proper transitions.
