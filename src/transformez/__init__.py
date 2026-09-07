@@ -26,7 +26,7 @@ except ImportError:
 
 
 from .api import generate_grid, transform_raster, build_components
-from .generation import build_shift_grid
+from .grid.shift import build_shift_grid, ShiftGrid
 
 import os
 import glob
@@ -73,4 +73,10 @@ if "PROJ_LIB" in os.environ:
 if target_proj_lib:
     os.environ["PROJ_LIB"] = target_proj_lib
 
-__all__ = ["generate_grid", "transform_raster", "build_components", "build_shift_grid"]
+__all__ = [
+    "generate_grid",
+    "transform_raster",
+    "build_components",
+    "build_shift_grid",
+    "ShiftGrid",
+]

@@ -14,7 +14,7 @@ from transformez.api import (
     build_components,
     TransformationComponents,
 )
-from transformez.generation import ShiftGrid
+from transformez.grid.shift import ShiftGrid
 from transformez.reference.parser import parse_reference
 
 

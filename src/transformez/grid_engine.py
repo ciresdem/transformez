@@ -35,7 +35,7 @@ from pyproj import CRS
 
 from fetchez.spatial import Region, parse_region
 
-from .generation import ShiftGrid
+from transformez.grid.shift import ShiftGrid
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 

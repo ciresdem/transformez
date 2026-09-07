@@ -12,7 +12,7 @@ from rasterio.transform import from_bounds
 from fetchez.spatial import Region
 
 from transformez.api import transform_raster
-from transformez.generation import ShiftGrid
+from transformez.grid.shift import ShiftGrid
 from transformez.reference.parser import parse_reference
 
 
