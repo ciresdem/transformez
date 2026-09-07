@@ -24,7 +24,7 @@ from .planner import (
     PlanOperation,
     TransformationPlan,
 )
-from ..htdp import HTDP
+from transformez.engines.htdp import HTDP
 
 logger = logging.getLogger(__name__)
 

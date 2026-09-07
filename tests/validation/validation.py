@@ -30,7 +30,7 @@ from fetchez.spatial import Region
 
 from transformez import generate_grid
 from transformez.utils import RasterQuery
-from transformez.vdatum import Vdatum
+from transformez.engines.vdatum import Vdatum
 
 # Configure logging
 logging.basicConfig(

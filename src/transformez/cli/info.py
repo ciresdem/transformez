@@ -224,7 +224,7 @@ def system() -> None:
         fetchez_version = "Not installed."
 
     try:
-        from transformez.htdp import resolve_htdp_path
+        from transformez.engines.htdp import resolve_htdp_path
 
         htdp_bin: Path | str | None = resolve_htdp_path()
         if htdp_bin:
@@ -236,7 +236,7 @@ def system() -> None:
         htdp_bin = ""
 
     try:
-        from transformez.vdatum import Vdatum
+        from transformez.engines.vdatum import Vdatum
 
         vd = Vdatum()
         locations = vd.vdatum_locate_jar()

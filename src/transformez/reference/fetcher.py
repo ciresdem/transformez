@@ -30,7 +30,7 @@ from transformez.grid_engine import (
     GridGen,
     GridCorruptionError,
 )
-from transformez.htdp import HTDP
+from transformez.engines.htdp import HTDP
 from .bindings import OPERATION_BINDINGS
 
 logger = logging.getLogger(__name__)
