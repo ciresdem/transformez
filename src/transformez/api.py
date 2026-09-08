@@ -35,8 +35,9 @@ from dataclasses import dataclass
 
 from pyproj import Transformer, CRS
 
-from transformez.grid.engine import GridEngine
 from transformez.utils import RasterQuery, UNITS
+from transformez.progress import ProgressCallback
+from transformez.grid.engine import GridEngine
 from transformez.reference.types import ReferenceInput
 from transformez.reference.parser import parse_reference
 from transformez.grid.shift import ShiftGrid, build_shift_grid
@@ -131,6 +132,7 @@ def generate_grid(
     cache_dir: Optional[str | Path] = None,
     use_stations: bool = False,
     verbose: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> Optional[np.ndarray]:
     """Generate a vertical shift grid for a specific region.
 
@@ -154,6 +156,7 @@ def generate_grid(
         cache_dir: Path to store downloaded grids.
         use_stations: Force RBF interpolation using live tide stations.
         verbose: Enable debug logging.
+        progress_callback: Callback for progress reporting.
 
     Returns:
         2D vertical shift grid, or None if failed.
@@ -177,6 +180,7 @@ def generate_grid(
         cache_dir,
         use_stations,
         verbose,
+        progress_callback,
     )
 
     if out_fn:

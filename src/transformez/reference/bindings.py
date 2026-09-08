@@ -83,6 +83,22 @@ CUSTOM_VERTICAL_REFERENCES = {
         unit_name="metre",
         unit_to_metre=1.0,
     ),
+    "vdatum:xgeoid19b": VerticalReference(
+        id="vdatum:xgeoid19b",
+        name="NGS X-GEOID 19b",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
+    "vdatum:xgeoid20b": VerticalReference(
+        id="vdatum:xgeoid20b",
+        name="NGS X-GEOID 20b",
+        kind=VerticalKind.GRAVITY_RELATED_HEIGHT,
+        axis_direction=AxisDirection.UP,
+        unit_name="metre",
+        unit_to_metre=1.0,
+    ),
     # GLOBAL
     "global:mss": VerticalReference(
         id="global:mss",
@@ -188,6 +204,22 @@ OPERATION_BINDINGS = {
         native_frame="EPSG:6319",
         default_model="geoid:g2018",
         global_proxy="global:hat",
+    ),
+    "vdatum:xgeoid19b": OperationBinding(
+        reference_id="vdatum:xgeoid19b",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="xgeoid19b",
+        native_frame="EPSG:7912",
+        default_model=None,
+    ),
+    "vdatum:xgeoid20b": OperationBinding(
+        reference_id="vdatum:xgeoid20b",
+        engine="vdatum_grid",
+        provider="vdatum",
+        provider_datum="xgeoid20b",
+        native_frame="EPSG:7912",
+        default_model=None,
     ),
     "global:mss": OperationBinding(
         reference_id="global:mss",
@@ -329,6 +361,16 @@ HTDP_FRAME_BINDINGS = {
         htdp_id=2,
         name="NAD_83(PA11/PACP00)",
         reference_epoch=2010.0,
+    ),
+    "EPSG:7911": HtdpFrameBinding(
+        htdp_id=22,
+        name="IGS08/IGb08",
+        reference_epoch=2000.0,
+    ),
+    "EPSG:7912": HtdpFrameBinding(
+        htdp_id=23,
+        name="IGS14/IGb14/WGS84/ITRF2014 Ellipsoid",
+        reference_epoch=2000.0,
     ),
 }
 

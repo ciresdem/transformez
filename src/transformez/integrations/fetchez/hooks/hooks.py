@@ -17,7 +17,7 @@ import logging
 from fetchez.hooks import FetchHook
 from fetchez import utils
 
-from transformez.generations import build_shift_grid
+from transformez.grid.shift import build_shift_grid
 
 logger = logging.getLogger(__name__)
 

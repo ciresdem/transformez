@@ -15,6 +15,7 @@ import click
 from fetchez.utils import FetchezMainCommand
 
 from transformez import api
+from transformez.progress import ProgressEvent
 
 
 # =====================================================================
@@ -102,6 +103,11 @@ def build(
         or f"shift_{input_datum.replace(':', '_')}_to_{output_datum.replace(':', '_')}.tif"
     )
 
+    def cli_callback(event: ProgressEvent):
+        click.secho(
+            f"[{event.progress:<3}%] ({event.stage}): {event.message}", fg="cyan"
+        )
+
     result = api.generate_grid(
         region=region,
         increment=increment,
@@ -115,6 +121,7 @@ def build(
         out_fn=out_fn,
         use_stations=use_stations,
         verbose=True,
+        progress_callback=cli_callback,
     )
 
     if preview and result is not None:
