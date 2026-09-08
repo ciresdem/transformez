@@ -28,7 +28,7 @@ dependencies = [
     'numpy>1.24',
     'pyproj>3.6.1',
     'rasterio>1.4.0',
-    'fetchez>0.8.0',
+    'fetchez>=0.8.7',
     'scipy',
     'click',
 ]

@@ -29,7 +29,7 @@ from fetchez.spatial import parse_region, Region
 from fetchez.utils import str_or, str2inc
 
 from transformez import __version__
-from transformez.progress import ProgressCallback
+from transformez.progress import ProgressCallback, report_progress
 from transformez.reference.types import ParsedReference, ReferenceInput
 from transformez.reference.parser import parse_reference
 
@@ -293,8 +293,12 @@ def build_shift_grid(
     from transformez.reference.resolver import resolve_reference
     from transformez.reference.planner import TransformationPlanner
 
+    report_progress(progress_callback, 0, "setup", "Initiating shift.")
+
     src_ref = parse_reference(datum_in)
     dst_ref = parse_reference(datum_out)
+
+    report_progress(progress_callback, 5, "setup", "Parsed references.")
 
     if isinstance(region, Region):
         region_obj = region
@@ -314,6 +318,8 @@ def build_shift_grid(
     except Exception as e:
         logger.error(f"Invalid increment '{increment}': {e}")
         raise
+
+    report_progress(progress_callback, 10, "setup", "Sanitized region.")
 
     effective_epoch_in = str_or(src_ref.coordinate_epoch, epoch_in)
     effective_epoch_out = str_or(dst_ref.coordinate_epoch, epoch_out)
@@ -341,7 +347,11 @@ def build_shift_grid(
         default_epoch=float(effective_epoch_out),
     )
 
+    report_progress(progress_callback, 15, "setup", "Resolved references.")
+
     plan = TransformationPlanner.build_plan(resolved_src, resolved_dst)
+
+    report_progress(progress_callback, 20, "setup", "Transformation plan built.")
 
     context = ExecutionContext(
         region=wgs84_region,
@@ -355,6 +365,13 @@ def build_shift_grid(
         extrapolate_inland=extrapolate_inland,
         use_stations=use_stations,
         verbose=verbose,
+    )
+
+    report_progress(
+        progress_callback,
+        25,
+        "transformation",
+        "Context established, beginning execution.",
     )
     try:
         executor = TransformationExecutor(context=context)
@@ -389,6 +406,7 @@ def build_shift_grid(
     except Exception as exc:
         raise RuntimeError("Transformation failed to generate a shift grid.") from exc
 
+    report_progress(progress_callback, 90, "finalize", "Transformation Complete")
     provenance = {
         "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
         "TIFFTAG_DATETIME": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
@@ -410,6 +428,8 @@ def build_shift_grid(
         "TRANSFORMEZ_EXTRAPOLATE_INLAND": str(extrapolate_inland),
         "TRANSFORMEZ_USE_STATIONS": str(use_stations),
     }
+
+    report_progress(progress_callback, 95, "finalize", "Recorded provenance.")
 
     wgs_transform = from_bounds(
         wgs84_region.xmin,
@@ -435,6 +455,7 @@ def build_shift_grid(
         use_stations,
     )
 
+    report_progress(progress_callback, 100, "finalize", "Complete..")
     return ShiftGrid(
         array=shift_array,
         region=wgs84_region,

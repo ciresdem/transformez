@@ -147,7 +147,6 @@ class GridEngine:
             preserve_zero: Preserve source cells equal to zero when the source
                 metadata also declares zero as nodata. This is required for
                 Dist2Coast, where zero identifies coastline-intersecting cells.
-
         Returns:
             2D array with composited grid data (NaN for no data).
         """
@@ -406,6 +405,7 @@ class GridEngine:
             return background_grid.copy()
 
         dist: Any = distance_transform_edt(mask)
+
         alpha = np.clip(dist / max(blend_pixels, 1), 0.0, 1.0)
         alpha = alpha * alpha * (3.0 - 2.0 * alpha)
 
@@ -478,6 +478,7 @@ class GridEngine:
             blended_ocean = GridEngine.smart_blend(
                 vdatum_grid, proxy_grid, blend_pixels=blend_pixels
             )
+
             final_grid[is_offshore] = blended_ocean[is_offshore]
 
         if is_inland.any():
