@@ -406,7 +406,7 @@ def build_shift_grid(
     except Exception as exc:
         raise RuntimeError("Transformation failed to generate a shift grid.") from exc
 
-    report_progress(progress_callback, 90, "finalize", "Transformation Complete")
+    report_progress(progress_callback, 90, "finalize", "Transformation complete.")
     provenance = {
         "TIFFTAG_SOFTWARE": f"Transformez v{__version__}",
         "TIFFTAG_DATETIME": datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"),
@@ -455,7 +455,7 @@ def build_shift_grid(
         use_stations,
     )
 
-    report_progress(progress_callback, 100, "finalize", "Complete..")
+    report_progress(progress_callback, 100, "finalize", "Complete.")
     return ShiftGrid(
         array=shift_array,
         region=wgs84_region,

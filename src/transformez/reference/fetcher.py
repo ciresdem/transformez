@@ -437,10 +437,6 @@ class GridFetcher:
             if entry.get("status", 0) != 0:
                 continue
 
-            logger.debug(
-                "Fetchez entry: %r",
-                entry,
-            )
             dst_fn = entry.get("dst_fn")
             if not dst_fn:
                 continue
